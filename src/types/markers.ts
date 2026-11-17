@@ -55,6 +55,19 @@ export type MarkerFormatType =
   | 'flow-id'
   | 'terminating-flow-id'
 
+  // Causal link ids. Like flow-id, these are u64 ids stored as hex strings, as
+  // string table indexes. They express explicit cause/effect links between
+  // markers on any thread:
+  //  - 'causal-trigger-id': this marker is a trigger for the id.
+  //  - 'causal-effect-id': this marker is an effect of the id. It consumes the
+  //    open triggers for that id.
+  //  - 'causal-shared-effect-id': an effect of the id that does not consume
+  //    the open triggers (broadcast fan-out).
+  // See src/profile-logic/causal-links.ts for the pairing rules.
+  | 'causal-trigger-id'
+  | 'causal-effect-id'
+  | 'causal-shared-effect-id'
+
   // ----------------------------------------------------
   // Numeric types
 
