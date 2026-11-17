@@ -190,6 +190,36 @@ describe('walkCriticalPath', () => {
     expect(walk.totalsByKind.running).toBe(10);
   });
 
+  it('continues in the enclosing interval when a nested effect has no trigger', () => {
+    const b = new Builder();
+    b.trigger(1, 'A', 10);
+    const outer = b.effect(0, 'A', 20, 60);
+    // Run synchronously inside A, with no trigger.
+    const nested = b.effect(0, 'U', 30, 40);
+    const walk = walkCriticalPath(b.graph(), 0, 35, opts);
+
+    expect(walk.stopReason).toBe('root');
+    expect(walk.segments.map((s) => s.kind)).toEqual([
+      'root',
+      'wait',
+      'running',
+      'running',
+    ]);
+    expect(walk.segments[2]).toMatchObject({
+      start: 20,
+      end: 30,
+      entryMarker: { threadIndex: 0, markerIndex: outer },
+    });
+    expect(walk.segments[2].nestedUnknownCause).toBeUndefined();
+    expect(walk.segments[3]).toMatchObject({
+      start: 30,
+      end: 35,
+      entryMarker: { threadIndex: 0, markerIndex: nested },
+      nestedUnknownCause: true,
+    });
+    expect(walk.totalsByKind.running).toBe(15);
+  });
+
   it('ends in a zero-length root outside of any causal interval', () => {
     const b = new Builder();
     b.effect(0, 'X', 30, 40);

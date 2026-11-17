@@ -348,6 +348,11 @@ CAUSAL MARKERS AND THE CRITICAL PATH
                    3 enclosing markers of any type on that thread, innermost
                    first: a hint at where to instrument next.
     unknown-cause  the effect has no matching trigger (zero length)
+                   and is not nested in another causal interval. An effect with
+                   no trigger that IS nested in one (work run synchronously, such
+                   as a script runner) does not stop the walk: its running
+                   segment is flagged and the walk continues in the enclosing
+                   interval.
   Each segment gives marker handles (entry effect; for waits the trigger and effect
   and both threads) and a time range printed as "zoom push ts-a,ts-b", ready to paste.
   Path length is running + wait busy + wait idle. After the segments come totals by thread and the reason the walk stopped (root,

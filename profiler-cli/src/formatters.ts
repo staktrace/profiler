@@ -693,7 +693,10 @@ function formatCriticalPathSegment(
   switch (segment.kind) {
     case 'running':
       lines.push(
-        `        in ${segment.entryMarker!.markerHandle} "${segment.entryMarker!.name}"`
+        `        in ${segment.entryMarker!.markerHandle} "${segment.entryMarker!.name}"` +
+          (segment.nestedUnknownCause
+            ? ' (no known trigger; nested in the previous segment, treated as a synchronous call)'
+            : '')
       );
       break;
     case 'wait': {

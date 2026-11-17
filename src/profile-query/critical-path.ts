@@ -14,7 +14,10 @@
  *                     that the path waited since the profile start, so nothing
  *                     is added to the totals.
  *   running segment   entry.time .. time on the thread, labelled with entry
- *   cause unknown   -> "unknown-cause" (zero length, at entry.time), stop
+ *   cause unknown   -> if the entry is nested in another effect-carrying
+ *                     interval on the thread, it ran synchronously inside it:
+ *                     continue from that interval, with no wait. Otherwise
+ *                     "unknown-cause" (zero length, at entry.time), stop
  *   wait segment      cause.time .. entry.time, from the cause's thread to the
  *                     entry's thread, then continue from (cause thread,
  *                     cause time) with the primary cause only.
@@ -22,6 +25,7 @@
 
 import {
   findCausalEntry,
+  findEnclosingCausalInterval,
   getBusyTime,
   getCauses,
   type CausalGraph,
@@ -49,6 +53,9 @@ export type CriticalPathRawSegment = {
   // running and unknown-cause: the entry effect marker. wait: the effect marker
   // the wait ends in (same as `effectMarker`). root: absent.
   entryMarker?: CriticalPathMarkerRef;
+  // running only: the entry has no known trigger but is nested in another
+  // effect-carrying interval, which the next older running segment is in.
+  nestedUnknownCause?: boolean;
   // Waits only.
   triggerMarker?: CriticalPathMarkerRef;
   effectMarker?: CriticalPathMarkerRef;
@@ -119,6 +126,7 @@ export function walkCriticalPath(
   let threadIndex = startThreadIndex;
   let time = startTime;
   let stopReason: CriticalPathStopReason = 'max-depth';
+  let nextEntry: CausalOccurrence | null = null;
 
   for (let depth = 0; ; depth++) {
     if (depth >= maxDepth) {
@@ -126,7 +134,8 @@ export function walkCriticalPath(
       break;
     }
 
-    const entry = findCausalEntry(graph, threadIndex, time);
+    const entry = nextEntry ?? findCausalEntry(graph, threadIndex, time);
+    nextEntry = null;
     if (entry === null) {
       reversed.push({
         kind: 'root',
@@ -155,6 +164,13 @@ export function walkCriticalPath(
 
     const causes = getCauses(graph, entry);
     if (causes === undefined || causes.kind === 'unknown') {
+      const outer = findEnclosingCausalInterval(graph, entry);
+      if (outer !== null) {
+        reversed[reversed.length - 1].nestedUnknownCause = true;
+        nextEntry = outer;
+        time = entry.time;
+        continue;
+      }
       reversed.push({
         kind: 'unknown-cause',
         threadIndex,

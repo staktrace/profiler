@@ -321,6 +321,9 @@ export function collectMarkerCriticalPath(
     if (raw.entryMarker) {
       segment.entryMarker = r.markerRef(raw.entryMarker);
     }
+    if (raw.nestedUnknownCause) {
+      segment.nestedUnknownCause = true;
+    }
     if (raw.kind === 'wait') {
       segment.triggerMarker = r.markerRef(raw.triggerMarker!);
       segment.effectMarker = r.markerRef(raw.effectMarker!);

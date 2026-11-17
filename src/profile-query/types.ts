@@ -1025,6 +1025,12 @@ export type CriticalPathSegment = {
   /** running and unknown-cause: the entry effect marker. */
   entryMarker?: CausalMarkerRef;
   /**
+   * running only: the entry has no known trigger but is nested in another
+   * causal interval on the thread (a synchronous call). The walk continues in
+   * that interval, which is the previous segment.
+   */
+  nestedUnknownCause?: boolean;
+  /**
    * root only: up to 3 interval markers of any type on the segment's thread
    * that contain the root time, innermost first (latest start, then shortest).
    * Empty if there is none. A hint at what to instrument.

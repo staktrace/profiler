@@ -361,6 +361,8 @@ profiler-cli marker critical-path <handle> [--max-depth N] --json
       start, end, duration,          // ms
       startName, endName,            // timestamp names, usable with "zoom push"
       entryMarker?: CausalMarkerRef, // running, unknown-cause, wait: the entry effect
+      nestedUnknownCause?: true,     // running only: entry has no trigger but is nested in the
+                                     // previous segment's causal interval (synchronous call)
       triggerMarker?, effectMarker?: CausalMarkerRef,   // wait only
       sourceThreadHandle?, sourceThreadName?,           // wait only
       alternateCauseCount?,          // wait only: other triggers, not followed

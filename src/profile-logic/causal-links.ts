@@ -464,6 +464,65 @@ export function findCausalEntry(
   return interval;
 }
 
+/**
+ * The innermost effect-carrying interval on the same thread that encloses
+ * `occurrence` (other than itself), or null. An effect with no known trigger
+ * that has such an encloser ran synchronously inside it.
+ */
+export function findEnclosingCausalInterval(
+  graph: CausalGraph,
+  occurrence: CausalOccurrence
+): CausalOccurrence | null {
+  const index = graph.entryIndexByThread[occurrence.threadIndex];
+  if (index === undefined) {
+    return null;
+  }
+  const { intervals, parents } = index;
+
+  // Last interval with start <= occurrence.time.
+  let lo = 0;
+  let hi = intervals.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (intervals[mid].time <= occurrence.time) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+  let candidate = lo - 1;
+  if (occurrence.end !== null) {
+    // An interval: its encloser is the parent of its own marker. A marker with
+    // several causal fields has several entries at the same position.
+    let self = candidate;
+    while (
+      self >= 0 &&
+      intervals[self].time === occurrence.time &&
+      intervals[self].markerIndex !== occurrence.markerIndex
+    ) {
+      self--;
+    }
+    if (self < 0 || intervals[self].markerIndex !== occurrence.markerIndex) {
+      return null;
+    }
+    candidate = parents[self];
+    while (
+      candidate >= 0 &&
+      intervals[candidate].markerIndex === occurrence.markerIndex
+    ) {
+      candidate = parents[candidate];
+    }
+  } else {
+    while (
+      candidate >= 0 &&
+      (intervals[candidate].end as number) < occurrence.time
+    ) {
+      candidate = parents[candidate];
+    }
+  }
+  return candidate >= 0 ? intervals[candidate] : null;
+}
+
 // Per graph, per thread: the effect-carrying intervals that are not nested in
 // another one, sorted by start. They never overlap each other.
 const topLevelIntervalsCache = new WeakMap<CausalGraph, CausalOccurrence[][]>();
