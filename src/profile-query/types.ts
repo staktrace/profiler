@@ -1031,6 +1031,11 @@ export type CriticalPathSegment = {
    */
   nestedUnknownCause?: boolean;
   /**
+   * unknown-cause only, when known: ms between the start of the data recorded
+   * for the effect's process (its first sample) and the effect.
+   */
+  msAfterRecordingStart?: number;
+  /**
    * root only: up to 3 interval markers of any type on the segment's thread
    * that contain the root time, innermost first (latest start, then shortest).
    * Empty if there is none. A hint at what to instrument.
@@ -1052,6 +1057,7 @@ export type CriticalPathSegment = {
 export type CriticalPathStopReason =
   | 'root'
   | 'unknown-cause'
+  | 'recording-start'
   | 'max-depth'
   | 'profile-start'
   | 'non-decreasing-time'

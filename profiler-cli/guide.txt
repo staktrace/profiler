@@ -356,7 +356,7 @@ CAUSAL MARKERS AND THE CRITICAL PATH
   Each segment gives marker handles (entry effect; for waits the trigger and effect
   and both threads) and a time range printed as "zoom push ts-a,ts-b", ready to paste.
   Path length is running + wait busy + wait idle. After the segments come totals by thread and the reason the walk stopped (root,
-  unknown cause, --max-depth, profile start, non-decreasing time, revisited marker).
+  unknown cause, start of the recorded data, --max-depth, profile start, non-decreasing time, revisited marker).
 
   Where several triggers were coalesced into one effect (fan-in), the earliest is
   followed and the others are only counted ("alternate causes"); use "marker cause"

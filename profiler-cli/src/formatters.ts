@@ -663,6 +663,8 @@ const CRITICAL_PATH_STOP_DESCRIPTIONS = {
   root: 'the chain starts here: no causal effect marker covers this point, so nothing is known to have caused it (the enclosing markers, if any, hint at what to instrument to extend the path)',
   'unknown-cause':
     'the effect at the start of the chain has no open trigger (a dropped marker, or the source is not instrumented)',
+  'recording-start':
+    'reached the start of the recorded data: the effect at the start of the chain has no trigger, and it began just after the oldest data kept for its process, so its trigger was most likely recorded earlier and overwritten when the profiler buffer filled up (record with a larger buffer to go further back)',
   'max-depth': 'reached --max-depth; raise it to follow the chain further',
   'profile-start': 'reached the start of the profile',
   'non-decreasing-time':
@@ -713,7 +715,10 @@ function formatCriticalPathSegment(
     }
     case 'unknown-cause':
       lines.push(
-        `        effect ${segment.entryMarker!.markerHandle} "${segment.entryMarker!.name}" has no known trigger`
+        `        effect ${segment.entryMarker!.markerHandle} "${segment.entryMarker!.name}" has no known trigger` +
+          (segment.msAfterRecordingStart !== undefined
+            ? ` (${formatDuration(Math.max(0, segment.msAfterRecordingStart))} after the start of the data recorded for its process)`
+            : '')
       );
       break;
     case 'root': {

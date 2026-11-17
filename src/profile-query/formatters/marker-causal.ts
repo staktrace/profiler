@@ -43,6 +43,10 @@ export type CausalData = {
   // Per thread, the full derived marker list (the same one a MarkerIndex of
   // that thread indexes into).
   markerLists: ReadonlyArray<ReadonlyArray<Marker>>;
+  // Per thread, the time of the first sample of any thread of its process: an
+  // estimate of where the data recorded for that process starts. null if the
+  // process has no samples.
+  recordingStartByThread: ReadonlyArray<number | null>;
 };
 
 // Cap on the effects listed for one trigger, so that a trigger with a very
@@ -97,7 +101,22 @@ export function computeCausalData(store: Store): CausalData {
     getMarkerSchema(state),
     getStringTable(state)
   );
-  return { graph, markerLists };
+  const firstSampleByPid = new Map<unknown, number>();
+  for (const thread of profile.threads) {
+    const { time, timeDeltas } = thread.samples;
+    const first = time ? time[0] : timeDeltas?.[0];
+    if (first === undefined) {
+      continue;
+    }
+    const known = firstSampleByPid.get(thread.pid);
+    if (known === undefined || first < known) {
+      firstSampleByPid.set(thread.pid, first);
+    }
+  }
+  const recordingStartByThread = profile.threads.map(
+    (thread) => firstSampleByPid.get(thread.pid) ?? null
+  );
+  return { graph, markerLists, recordingStartByThread };
 }
 
 type Resolver = {
@@ -304,6 +323,7 @@ export function collectMarkerCriticalPath(
   const walk = walkCriticalPath(graph, threadIndex, walkTime, {
     maxDepth,
     profileStart: rootRange.start,
+    recordingStartByThread: data.recordingStartByThread,
   });
 
   const rel = (time: number) => time - r.zeroAt;
@@ -320,6 +340,9 @@ export function collectMarkerCriticalPath(
     };
     if (raw.entryMarker) {
       segment.entryMarker = r.markerRef(raw.entryMarker);
+    }
+    if (raw.msAfterRecordingStart !== undefined) {
+      segment.msAfterRecordingStart = raw.msAfterRecordingStart;
     }
     if (raw.nestedUnknownCause) {
       segment.nestedUnknownCause = true;

@@ -56,6 +56,9 @@ export type CriticalPathRawSegment = {
   // running only: the entry has no known trigger but is nested in another
   // effect-carrying interval, which the next older running segment is in.
   nestedUnknownCause?: boolean;
+  // unknown-cause only, when known: how long after the start of the data
+  // recorded for its process the effect started.
+  msAfterRecordingStart?: number;
   // Waits only.
   triggerMarker?: CriticalPathMarkerRef;
   effectMarker?: CriticalPathMarkerRef;
@@ -73,6 +76,9 @@ export type CriticalPathStopReason =
   | 'root'
   // The entry effect has no open trigger.
   | 'unknown-cause'
+  // Same, but the effect is so close to the start of the data recorded for its
+  // process that its trigger was most likely recorded before that and lost.
+  | 'recording-start'
   | 'max-depth'
   // The walk reached (or went before) the profile start.
   | 'profile-start'
@@ -106,7 +112,14 @@ export type CriticalPathOptions = {
   maxDepth: number;
   // The lower bound of the walk, normally the start of the profile.
   profileStart: number;
+  // Per thread, when the data recorded for the thread's process starts (a
+  // profiler buffer that filled up drops its oldest data), or null if unknown.
+  recordingStartByThread?: ReadonlyArray<number | null>;
 };
+
+// An effect with no trigger that starts within this many milliseconds of the
+// start of its process's recorded data stops the walk with 'recording-start'.
+export const RECORDING_START_WINDOW_MS = 100;
 
 function ref(occurrence: CausalOccurrence): CriticalPathMarkerRef {
   return {
@@ -119,7 +132,7 @@ export function walkCriticalPath(
   graph: CausalGraph,
   startThreadIndex: number,
   startTime: number,
-  { maxDepth, profileStart }: CriticalPathOptions
+  { maxDepth, profileStart, recordingStartByThread }: CriticalPathOptions
 ): CriticalPathWalk {
   const reversed: CriticalPathRawSegment[] = [];
   const visited = new Set<string>();
@@ -171,14 +184,26 @@ export function walkCriticalPath(
         time = entry.time;
         continue;
       }
+      const recordingStart = recordingStartByThread?.[entry.threadIndex];
+      const msAfterRecordingStart =
+        recordingStart === null || recordingStart === undefined
+          ? undefined
+          : entry.time - recordingStart;
       reversed.push({
         kind: 'unknown-cause',
         threadIndex,
         start: entry.time,
         end: entry.time,
         entryMarker: ref(entry),
+        ...(msAfterRecordingStart === undefined
+          ? {}
+          : { msAfterRecordingStart }),
       });
-      stopReason = 'unknown-cause';
+      stopReason =
+        msAfterRecordingStart !== undefined &&
+        msAfterRecordingStart <= RECORDING_START_WINDOW_MS
+          ? 'recording-start'
+          : 'unknown-cause';
       break;
     }
 

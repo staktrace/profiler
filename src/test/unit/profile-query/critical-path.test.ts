@@ -220,6 +220,27 @@ describe('walkCriticalPath', () => {
     expect(walk.totalsByKind.running).toBe(15);
   });
 
+  it('reports the start of the recorded data for an early unknown cause', () => {
+    const b = new Builder();
+    b.effect(0, 'U', 30, 40);
+    const near = walkCriticalPath(b.graph(), 0, 40, {
+      ...opts,
+      recordingStartByThread: [25, null, null],
+    });
+    expect(near.stopReason).toBe('recording-start');
+    expect(near.segments[0]).toMatchObject({
+      kind: 'unknown-cause',
+      msAfterRecordingStart: 5,
+    });
+
+    const far = walkCriticalPath(b.graph(), 0, 40, {
+      ...opts,
+      recordingStartByThread: [-500, null, null],
+    });
+    expect(far.stopReason).toBe('unknown-cause');
+    expect(far.segments[0].msAfterRecordingStart).toBe(530);
+  });
+
   it('ends in a zero-length root outside of any causal interval', () => {
     const b = new Builder();
     b.effect(0, 'X', 30, 40);

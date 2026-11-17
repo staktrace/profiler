@@ -363,6 +363,7 @@ profiler-cli marker critical-path <handle> [--max-depth N] --json
       entryMarker?: CausalMarkerRef, // running, unknown-cause, wait: the entry effect
       nestedUnknownCause?: true,     // running only: entry has no trigger but is nested in the
                                      // previous segment's causal interval (synchronous call)
+      msAfterRecordingStart?,        // unknown-cause only: ms since the first sample of its process
       triggerMarker?, effectMarker?: CausalMarkerRef,   // wait only
       sourceThreadHandle?, sourceThreadName?,           // wait only
       alternateCauseCount?,          // wait only: other triggers, not followed
@@ -375,7 +376,7 @@ profiler-cli marker critical-path <handle> [--max-depth N] --json
     totalsByKind: { running, waitBusy, waitIdle },
     totalsByThread: [{ threadHandle, friendlyThreadName, running, waitBusy,
                        waitIdle, total }],
-    stopReason: "root" | "unknown-cause" | "max-depth" | "profile-start" |
+    stopReason: "root" | "unknown-cause" | "recording-start" | "max-depth" | "profile-start" |
                 "non-decreasing-time" | "revisited-marker",
     hasCausalSchema,
     warnings: [string],              // e.g. the profile has no causal schema
