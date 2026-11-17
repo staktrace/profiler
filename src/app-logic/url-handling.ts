@@ -42,6 +42,7 @@ import type {
   IndexIntoFrameTable,
   MarkerIndex,
   SelectedMarkersPerThread,
+  CriticalPathTarget,
   SelectedFunctionsPerThread,
 } from 'firefox-profiler/types';
 import { FuncFlag } from 'firefox-profiler/types';
@@ -198,6 +199,7 @@ type BaseQuery = {
   transforms: string;
   profiles: string[];
   profileName: string;
+  criticalPath: string; // "12-345": thread index, then marker index
   symbolServer: string;
   view: string;
   implementation: string;
@@ -343,6 +345,9 @@ export function getQueryStringFromUrlState(urlState: UrlState): string {
     profiles: urlState.profilesToCompare || undefined,
     v: CURRENT_URL_VERSION,
     profileName: urlState.profileName || undefined,
+    criticalPath: urlState.profileSpecific.criticalPathTarget
+      ? `${urlState.profileSpecific.criticalPathTarget.threadIndex}-${urlState.profileSpecific.criticalPathTarget.markerIndex}`
+      : undefined,
     symbolServer: urlState.symbolServerUrl || undefined,
     implementation:
       urlState.profileSpecific.implementation === 'combined'
@@ -690,6 +695,7 @@ export function stateFromLocation(
       callTreeSearchString: query.search || '',
       markersSearchString: query.markerSearch || '',
       networkSearchString: query.networkSearch || '',
+      criticalPathTarget: parseCriticalPathTarget(query.criticalPath),
       transforms,
       sourceView,
       assemblyView,
@@ -727,6 +733,16 @@ export function stateFromLocation(
       ),
     },
   };
+}
+
+function parseCriticalPathTarget(
+  value: string | undefined
+): CriticalPathTarget | null {
+  const match = /^(\d+)-(\d+)$/.exec(value ?? '');
+  if (match === null) {
+    return null;
+  }
+  return { threadIndex: Number(match[1]), markerIndex: Number(match[2]) };
 }
 
 // Column sort URL encoding, used by the marker table and the function list.

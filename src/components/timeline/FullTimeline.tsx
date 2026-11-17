@@ -9,6 +9,7 @@ import { Localized } from '@fluent/react';
 import { TimelineGlobalTrack } from './GlobalTrack';
 import { TimelineRuler } from './Ruler';
 import { TimelineSelection } from './Selection';
+import { TimelineCriticalPath } from './CriticalPath';
 import { OverflowEdgeIndicator } from './OverflowEdgeIndicator';
 import { Reorderable } from 'firefox-profiler/components/shared/Reorderable';
 import { withSize } from 'firefox-profiler/components/shared/WithSize';
@@ -201,6 +202,7 @@ class FullTimelineImpl extends React.PureComponent<Props, State> {
               unit={profileTimelineUnit}
             />
           </div>
+          <TimelineCriticalPath width={width} />
           <OverflowEdgeIndicator
             className="tracksContainer timelineOverflowEdgeIndicator"
             initialSelected={this.state.initialSelected}

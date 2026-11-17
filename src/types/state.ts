@@ -94,6 +94,15 @@ export type MarkerReference = {
   readonly markerIndex: MarkerIndex;
 };
 
+/**
+ * The marker whose critical path is shown in the timeline. markerIndex indexes
+ * the full marker list of that single thread.
+ */
+export type CriticalPathTarget = {
+  readonly threadIndex: ThreadIndex;
+  readonly markerIndex: MarkerIndex;
+};
+
 export type SelectedMarkersPerThread = {
   [key: ThreadsKey]: MarkerIndex | null;
 };
@@ -397,6 +406,7 @@ export type ProfileSpecificUrlState = {
   legacyThreadOrder: ThreadIndex[] | null;
   legacyHiddenThreads: ThreadIndex[] | null;
   selectedMarkers: SelectedMarkersPerThread;
+  criticalPathTarget: CriticalPathTarget | null;
   selectedFunctions: SelectedFunctionsPerThread;
   markerTableSort: SingleColumnSortState[] | null;
   functionListSort: SingleColumnSortState[] | null;

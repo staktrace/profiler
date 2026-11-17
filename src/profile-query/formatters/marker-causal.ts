@@ -22,7 +22,7 @@ import {
   type CausalGraph,
   type CausalOccurrence,
 } from 'firefox-profiler/profile-logic/causal-links';
-import type { Marker } from 'firefox-profiler/types';
+import type { Marker, State } from 'firefox-profiler/types';
 import type { Store } from '../../types/store';
 import type { ThreadMap } from '../thread-map';
 import type { MarkerMap } from '../marker-map';
@@ -91,7 +91,10 @@ function findEnclosingMarkers(
  * so a caller computes it once per loaded profile and keeps it.
  */
 export function computeCausalData(store: Store): CausalData {
-  const state = store.getState();
+  return computeCausalDataFromState(store.getState());
+}
+
+export function computeCausalDataFromState(state: State): CausalData {
   const profile = getProfile(state);
   const markerLists = profile.threads.map((_, threadIndex) =>
     getThreadSelectors(new Set([threadIndex])).getFullMarkerList(state)
@@ -286,6 +289,21 @@ export function collectMarkerCause(
   };
 }
 
+/**
+ * Where the walk to a marker begins: the end of the marker. An instant marker
+ * ends where it starts, and an incomplete interval has not ended, so it is
+ * taken to run to the end of the profile.
+ */
+export function getCriticalPathWalkStart(
+  marker: Marker,
+  profileEnd: number
+): number {
+  if (marker.end === null && marker.incomplete) {
+    return Math.max(marker.start, profileEnd);
+  }
+  return marker.end ?? marker.start;
+}
+
 export const NO_CAUSAL_SCHEMA_WARNING =
   'This profile has no marker schema with a causal field (causal-trigger-id, ' +
   'causal-effect-id or causal-shared-effect-id): it was recorded without ' +
@@ -315,10 +333,7 @@ export function collectMarkerCriticalPath(
   // Where the walk begins: the end of the marker. An instant marker ends where
   // it starts, and an incomplete interval has not ended, so it is taken to run
   // to the end of the profile.
-  let walkTime = marker.end ?? marker.start;
-  if (marker.end === null && marker.incomplete) {
-    walkTime = Math.max(marker.start, rootRange.end);
-  }
+  const walkTime = getCriticalPathWalkStart(marker, rootRange.end);
 
   const walk = walkCriticalPath(graph, threadIndex, walkTime, {
     maxDepth,

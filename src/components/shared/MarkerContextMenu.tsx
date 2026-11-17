@@ -12,6 +12,7 @@ import { assertExhaustiveCheck } from 'firefox-profiler/utils/types';
 import {
   setContextMenuVisibility,
   updatePreviewSelection,
+  changeCriticalPathTarget,
   selectTrackFromTid,
 } from 'firefox-profiler/actions/profile-view';
 import {
@@ -62,6 +63,7 @@ type StateProps = {
 };
 
 type DispatchProps = {
+  readonly changeCriticalPathTarget: typeof changeCriticalPathTarget;
   readonly updatePreviewSelection: typeof updatePreviewSelection;
   readonly setContextMenuVisibility: typeof setContextMenuVisibility;
   readonly selectTrackFromTid: typeof selectTrackFromTid;
@@ -162,6 +164,23 @@ class MarkerContextMenuImpl extends PureComponent<Props> {
       .map(({ funcName, origin }) => `${funcName} [${origin}]`)
       .join('\n');
   }
+
+  // The critical path is computed over the marker lists of single threads, so
+  // it is only offered when the marker is not from a merged-threads view.
+  _criticalPathThreadIndex(): number | null {
+    const { threadsKey } = this.props.rightClickedMarkerInfo;
+    return typeof threadsKey === 'number' ? threadsKey : null;
+  }
+
+  showCriticalPath = () => {
+    const threadIndex = this._criticalPathThreadIndex();
+    if (threadIndex !== null) {
+      this.props.changeCriticalPathTarget({
+        threadIndex,
+        markerIndex: this.props.markerIndex,
+      });
+    }
+  };
 
   copyMarkerJSON = () => {
     copy(JSON.stringify(this.props.marker, null, 2));
@@ -483,6 +502,17 @@ class MarkerContextMenuImpl extends PureComponent<Props> {
         )}
 
         <div className="react-contextmenu-separator" />
+        {this._criticalPathThreadIndex() !== null ? (
+          <>
+            <MenuItem onClick={this.showCriticalPath}>
+              <span className="react-contextmenu-icon markerContextMenuIconCriticalPath" />
+              <Localized id="MarkerContextMenu--show-critical-path">
+                Show critical path to this marker
+              </Localized>
+            </MenuItem>
+            <div className="react-contextmenu-separator" />
+          </>
+        ) : null}
         <MenuItem onClick={this.copyMarkerDescription}>
           <span className="react-contextmenu-icon markerContextMenuIconCopyDescription" />
           <Localized id="MarkerContextMenu--copy-description">
@@ -536,6 +566,7 @@ const MarkerContextMenu = explicitConnect<OwnProps, StateProps, DispatchProps>({
     };
   },
   mapDispatchToProps: {
+    changeCriticalPathTarget,
     updatePreviewSelection,
     setContextMenuVisibility,
     selectTrackFromTid,

@@ -24,6 +24,7 @@ import type {
   IsOpenPerPanelState,
   TabID,
   SelectedMarkersPerThread,
+  CriticalPathTarget,
   SelectedFunctionsPerThread,
 } from 'firefox-profiler/types';
 
@@ -183,6 +184,18 @@ const callTreeSearchString: Reducer<string> = (state = '', action) => {
   switch (action.type) {
     case 'CHANGE_CALL_TREE_SEARCH_STRING':
       return action.searchString;
+    default:
+      return state;
+  }
+};
+
+const criticalPathTarget: Reducer<CriticalPathTarget | null> = (
+  state = null,
+  action
+) => {
+  switch (action.type) {
+    case 'CHANGE_CRITICAL_PATH_TARGET':
+      return action.target;
     default:
       return state;
   }
@@ -868,6 +881,7 @@ const profileSpecific = combineReducers({
   callTreeSearchString,
   markersSearchString,
   networkSearchString,
+  criticalPathTarget,
   transforms,
   sourceView,
   assemblyView,

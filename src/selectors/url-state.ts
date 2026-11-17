@@ -32,6 +32,7 @@ import type {
   TabID,
   IndexIntoSourceTable,
   MarkerIndex,
+  CriticalPathTarget,
   IndexIntoFuncTable,
 } from 'firefox-profiler/types';
 
@@ -117,6 +118,9 @@ export const getShowJsTracerSummary: Selector<boolean> = (state) =>
  */
 export const getCurrentSearchString: Selector<string> = (state) =>
   getProfileSpecificState(state).callTreeSearchString;
+export const getCriticalPathTarget: Selector<CriticalPathTarget | null> = (
+  state
+) => getProfileSpecificState(state).criticalPathTarget;
 export const getMarkersSearchString: Selector<string> = (state) =>
   getProfileSpecificState(state).markersSearchString;
 export const getMarkerTableSort: Selector<SingleColumnSortState[] | null> = (

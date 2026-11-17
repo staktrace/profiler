@@ -24,6 +24,7 @@ import {
   changeSelectedMarker,
   changeMarkerTableSort,
   changeFunctionListSort,
+  changeCriticalPathTarget,
 } from '../actions/profile-view';
 import { changeSelectedTab, changeProfilesToCompare } from '../actions/app';
 import {
@@ -627,6 +628,30 @@ describe('selected function', function () {
     expect(
       selectedThreadSelectors.getSelectedFunctionIndex(getState())
     ).toBeNull();
+  });
+});
+
+describe('critical path target', function () {
+  it('is not in the URL by default', function () {
+    const { getState } = _getStoreWithURL();
+    expect(urlStateSelectors.getCriticalPathTarget(getState())).toBeNull();
+    expect(getQueryStringFromState(getState())).not.toContain('criticalPath');
+  });
+
+  it('survives a URL roundtrip', function () {
+    const { getState, dispatch } = _getStoreWithURL();
+    dispatch(changeCriticalPathTarget({ threadIndex: 2, markerIndex: 37 }));
+    expect(getQueryStringFromState(getState())).toContain('criticalPath=2-37');
+
+    const newStore = _getStoreFromStateAfterUrlRoundtrip(getState());
+    expect(
+      urlStateSelectors.getCriticalPathTarget(newStore.getState())
+    ).toEqual({ threadIndex: 2, markerIndex: 37 });
+  });
+
+  it('ignores a malformed value', function () {
+    const { getState } = _getStoreWithURL({ search: '?criticalPath=abc' });
+    expect(urlStateSelectors.getCriticalPathTarget(getState())).toBeNull();
   });
 });
 

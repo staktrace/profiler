@@ -336,6 +336,14 @@ SettingsMenu--cookies = Cookies
 SettingsMenu--language-switcher =
     .title = Change language
 
+## TimelineCriticalPath
+## The row at the top of the timeline that shows the critical path to a marker:
+## the chain of work, across threads, that led to it.
+
+TimelineCriticalPath--label = Critical path
+TimelineCriticalPath--close-button =
+    .title = Hide the critical path
+
 ## FullTimeline
 ## The timeline component of the full view in the analysis UI at the top of the
 ## page.
@@ -487,6 +495,7 @@ MarkerContextMenu--end-selection-at-marker-start =
     End selection at marker’s <strong>start</strong>
 MarkerContextMenu--end-selection-at-marker-end =
     End selection at marker’s <strong>end</strong>
+MarkerContextMenu--show-critical-path = Show critical path to this marker
 MarkerContextMenu--copy-description = Copy description
 MarkerContextMenu--copy-call-stack = Copy call stack
 MarkerContextMenu--copy-url = Copy URL

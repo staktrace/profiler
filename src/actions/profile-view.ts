@@ -69,6 +69,7 @@ import type {
   IndexIntoResourceTable,
   TrackIndex,
   MarkerIndex,
+  CriticalPathTarget,
   Transform,
   ThreadsKey,
   Milliseconds,
@@ -1710,6 +1711,18 @@ export function changeRightClickedMarker(
     type: 'CHANGE_RIGHT_CLICKED_MARKER',
     threadsKey,
     markerIndex,
+  };
+}
+
+/**
+ * Show the critical path to a marker in the timeline, or hide it with null.
+ */
+export function changeCriticalPathTarget(
+  target: CriticalPathTarget | null
+): Action {
+  return {
+    type: 'CHANGE_CRITICAL_PATH_TARGET',
+    target,
   };
 }
 

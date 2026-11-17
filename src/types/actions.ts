@@ -47,6 +47,7 @@ import type {
   TableViewOptions,
   DecodedInstruction,
   ProfileEncodingResult,
+  CriticalPathTarget,
 } from './state';
 import type { CssPixels, StartEndRange, Milliseconds } from './units';
 import type { BrowserConnectionStatus } from '../app-logic/browser-connection';
@@ -569,6 +570,10 @@ type UrlStateAction =
   | {
       readonly type: 'CHANGE_SHOW_JS_TRACER_SUMMARY';
       readonly showSummary: boolean;
+    }
+  | {
+      readonly type: 'CHANGE_CRITICAL_PATH_TARGET';
+      readonly target: CriticalPathTarget | null;
     }
   | {
       readonly type: 'CHANGE_MARKER_SEARCH_STRING';
