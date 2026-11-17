@@ -66,6 +66,12 @@ export type {
   MarkerInfoResult,
   MarkerInfoMultiResult,
   MarkerStackResult,
+  MarkerCauseResult,
+  MarkerCriticalPathResult,
+  CausalMarkerRef,
+  CausalLinkEnd,
+  MarkerCauseOccurrence,
+  CriticalPathSegment,
   StackTraceData,
   ProfileInfoResult,
   ProfileMetaResult,
@@ -104,6 +110,8 @@ import type {
   ThreadListResult,
   ThreadListOptions,
   MarkerStackResult,
+  MarkerCauseResult,
+  MarkerCriticalPathResult,
   MarkerInfoResult,
   MarkerInfoMultiResult,
   ProfileInfoResult,
@@ -209,9 +217,11 @@ export type ClientCommand =
     }
   | {
       command: 'marker';
-      subcommand: 'info' | 'select' | 'stack';
-      /** Single handle, for `stack`. */
+      subcommand: 'info' | 'select' | 'stack' | 'cause' | 'critical-path';
+      /** Single handle, for `stack`, `cause` and `critical-path`. */
       marker?: string;
+      /** `critical-path`: the maximum number of causal hops to follow. */
+      maxDepth?: number;
       /** Handle specs for `info`, e.g. ["m-42", "m-50..m-53"]. */
       markers?: string[];
     }
@@ -292,6 +302,8 @@ export type CommandResult =
   | WithContext<ThreadInfoResult>
   | WithContext<ThreadListResult>
   | WithContext<MarkerStackResult>
+  | WithContext<MarkerCauseResult>
+  | WithContext<MarkerCriticalPathResult>
   | WithContext<MarkerInfoResult>
   | WithContext<MarkerInfoMultiResult>
   | WithContext<ProfileInfoResult>

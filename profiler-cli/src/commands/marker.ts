@@ -8,7 +8,7 @@
 
 import type { Command } from 'commander';
 import { expandMarkerHandleSpecs } from 'firefox-profiler/profile-query/marker-map';
-import { addGlobalOptions, runCommand } from './shared';
+import { addGlobalOptions, parseIntArg, runCommand } from './shared';
 
 export function registerMarkerCommand(
   program: Command,
@@ -52,36 +52,99 @@ export function registerMarkerCommand(
       .description('Show full stack trace for a marker (e.g. m-1234)')
       .option('--marker <handle>', 'Marker handle')
   ).action(async (handleArg: string | undefined, opts) => {
-    let markerHandle = handleArg ?? opts.marker;
-    // Expanding with the real grammar keeps this from being a second, drifting
-    // definition of it. A range reaching the daemon would come back as "Unknown
-    // marker m-1..m-3", which reads like a bad handle rather than bad syntax.
-    // The expansion is also what gets sent on, so spellings that normalise to
-    // one handle (`m-2..m-2`, `m-2,`) work rather than failing as unknown.
-    if (typeof markerHandle === 'string') {
-      let expanded: string[];
-      try {
-        expanded = expandMarkerHandleSpecs([markerHandle]);
-      } catch (error) {
-        console.error(
-          `Error: ${error instanceof Error ? error.message : String(error)}`
-        );
-        process.exit(1);
-      }
-      if (expanded.length !== 1) {
-        console.error(
-          expanded.length === 0
-            ? `Error: marker stack requires a marker handle.`
-            : `Error: marker stack takes a single handle; ranges and lists are only supported by 'marker info'.`
-        );
-        process.exit(1);
-      }
-      markerHandle = expanded[0];
-    }
+    const markerHandle = singleMarkerHandle('stack', handleArg ?? opts.marker);
     await runCommand(
       sessionDir,
       { command: 'marker', subcommand: 'stack', marker: markerHandle },
       opts
     );
   });
+
+  addGlobalOptions(
+    marker
+      .command('cause [handle]')
+      .description(
+        'Show the causal links of a marker: the trigger(s) that caused it, ' +
+          'the effects it caused, and the causal interval it is nested in ' +
+          '(e.g. m-1234)'
+      )
+      .option('--marker <handle>', 'Marker handle')
+  ).action(async (handleArg: string | undefined, opts) => {
+    const markerHandle = singleMarkerHandle('cause', handleArg ?? opts.marker);
+    await runCommand(
+      sessionDir,
+      { command: 'marker', subcommand: 'cause', marker: markerHandle },
+      opts
+    );
+  });
+
+  addGlobalOptions(
+    marker
+      .command('critical-path [handle]')
+      .description(
+        'Walk causal links backward from the end of a marker, across threads, ' +
+          'and show the critical path to it as running and waiting ' +
+          'segments (e.g. m-1234). Needs a profile recorded with ' +
+          'causal markers.'
+      )
+      .option('--marker <handle>', 'Marker handle')
+      .option(
+        '--max-depth <n>',
+        'Maximum number of causal hops to follow (default: 50)'
+      )
+  ).action(async (handleArg: string | undefined, opts) => {
+    const markerHandle = singleMarkerHandle(
+      'critical-path',
+      handleArg ?? opts.marker
+    );
+    const maxDepth =
+      opts.maxDepth !== undefined
+        ? parseIntArg('--max-depth', String(opts.maxDepth), 1)
+        : undefined;
+    await runCommand(
+      sessionDir,
+      {
+        command: 'marker',
+        subcommand: 'critical-path',
+        marker: markerHandle,
+        maxDepth,
+      },
+      opts
+    );
+  });
+}
+
+/**
+ * Validate the handle argument of a command that takes exactly one marker.
+ * Expanding with the real grammar keeps this from being a second, drifting
+ * definition of it. A range reaching the daemon would come back as "Unknown
+ * marker m-1..m-3", which reads like a bad handle rather than bad syntax. The
+ * expansion is also what gets sent on, so spellings that normalise to one handle
+ * (`m-2..m-2`, `m-2,`) work rather than failing as unknown.
+ */
+function singleMarkerHandle(
+  subcommand: string,
+  markerHandle: string | undefined
+): string | undefined {
+  if (typeof markerHandle !== 'string') {
+    return undefined;
+  }
+  let expanded: string[];
+  try {
+    expanded = expandMarkerHandleSpecs([markerHandle]);
+  } catch (error) {
+    console.error(
+      `Error: ${error instanceof Error ? error.message : String(error)}`
+    );
+    process.exit(1);
+  }
+  if (expanded.length !== 1) {
+    console.error(
+      expanded.length === 0
+        ? `Error: marker ${subcommand} requires a marker handle.`
+        : `Error: marker ${subcommand} takes a single handle; ranges and lists are only supported by 'marker info'.`
+    );
+    process.exit(1);
+  }
+  return expanded[0];
 }

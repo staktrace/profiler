@@ -557,6 +557,20 @@ export class Daemon {
               throw new Error('marker handle required for marker stack');
             }
             return this.querier.markerStack(command.marker);
+          case 'cause':
+            if (!command.marker) {
+              throw new Error('marker handle required for marker cause');
+            }
+            return this.querier.markerCause(command.marker);
+          case 'critical-path':
+            if (!command.marker) {
+              throw new Error(
+                'marker handle required for marker critical-path'
+              );
+            }
+            return this.querier.markerCriticalPath(command.marker, {
+              maxDepth: command.maxDepth,
+            });
           case 'select':
             throw new Error('unimplemented');
           default:

@@ -109,6 +109,8 @@ CORE WORKFLOW
     profiler-cli marker info m-1234 m-1240   Several markers in one call (one record per handle)
     profiler-cli marker info m-1234..m-1240  Inclusive range of handles, e.g. consecutive list rows
     profiler-cli marker stack m-1234         Full stack trace at the time of a marker
+    profiler-cli marker cause m-1234         Causal links of a marker: what triggered it, what it triggered
+    profiler-cli marker critical-path m-1234 Walk causal links back across threads (see CAUSAL MARKERS)
     profiler-cli function info f-12          Function details (source location, library)
     profiler-cli function expand f-12        Show full untruncated function name
     profiler-cli function annotate f-12      Annotated source with per-line self/total timing
@@ -317,6 +319,45 @@ DATA SOURCES
 
   Asking for a source the thread has no data for is an error, so byte-free output
   never gets mistaken for allocation data.
+
+
+CAUSAL MARKERS AND THE CRITICAL PATH
+
+  Profiles recorded with causal markers carry explicit cause/effect links between
+  markers, across threads and processes: a trigger marker (a task was dispatched, a
+  timer armed, a message sent) and an effect marker (the work that ran because of
+  it). Their schema fields have the formats causal-trigger-id, causal-effect-id
+  and causal-shared-effect-id; "marker info" shows them as hex ids.
+
+    profiler-cli marker cause m-1234                One hop: the trigger(s) that caused this
+                                                    marker, the effects it caused, and the
+                                                    causal interval it is nested in
+    profiler-cli marker critical-path m-1234        Walk backward from the END of the marker
+    profiler-cli marker critical-path m-1234 --max-depth 10    Follow at most 10 hops (default 50)
+
+  "marker critical-path" prints chronological segments:
+    running        the thread was executing the causal interval named in the segment
+    wait           the effect was waiting for its trigger: time from the trigger
+                   to the start of the effect, on the thread that was waiting. It
+                   is split into "busy" (the thread was running other causal work,
+                   so the effect was queued behind it) and "idle". CPU scheduling
+                   delay cannot be told apart from waiting.
+    root           zero length: the chain starts here because no causal effect
+                   marker covers this point. It adds nothing to the totals (we do
+                   not know the path waited since the profile start). Lists up to
+                   3 enclosing markers of any type on that thread, innermost
+                   first: a hint at where to instrument next.
+    unknown-cause  the effect has no matching trigger (zero length)
+  Each segment gives marker handles (entry effect; for waits the trigger and effect
+  and both threads) and a time range printed as "zoom push ts-a,ts-b", ready to paste.
+  Path length is running + wait busy + wait idle. After the segments come totals by thread and the reason the walk stopped (root,
+  unknown cause, --max-depth, profile start, non-decreasing time, revisited marker).
+
+  Where several triggers were coalesced into one effect (fan-in), the earliest is
+  followed and the others are only counted ("alternate causes"); use "marker cause"
+  to list them. Handles must come from a single-thread marker listing. If the
+  profile has no causal marker schema, the command says so: it was recorded without
+  causal markers.
 
 
 JSON OUTPUT

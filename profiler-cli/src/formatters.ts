@@ -20,6 +20,11 @@ import type {
   ThreadInfoResult,
   ThreadListResult,
   MarkerStackResult,
+  MarkerCauseResult,
+  MarkerCriticalPathResult,
+  CausalMarkerRef,
+  CausalLinkEnd,
+  CriticalPathSegment,
   MarkerInfoResult,
   MarkerInfoMultiResult,
   ProfileInfoResult,
@@ -534,6 +539,248 @@ Stack trace for marker ${result.markerHandle}: ${result.markerName}\n`;
   }
 
   return output;
+}
+
+/**
+ * One marker of a causal result on one line: handle, name, thread and time.
+ */
+function formatCausalMarkerRef(
+  marker: CausalMarkerRef,
+  formatTimestamp: (time: number) => string
+): string {
+  return `${marker.markerHandle} "${marker.name}" on ${marker.threadHandle} (${marker.friendlyThreadName}) at ${formatCausalTimeRange(marker, formatTimestamp)}`;
+}
+
+function formatCausalTimeRange(
+  marker: CausalMarkerRef,
+  formatTimestamp: (time: number) => string
+): string {
+  return marker.end !== null
+    ? `${formatTimestamp(marker.start)} - ${formatTimestamp(marker.end)}`
+    : formatTimestamp(marker.start);
+}
+
+function formatCausalLinkEnd(
+  end: CausalLinkEnd,
+  formatTimestamp: (time: number) => string
+): string {
+  return `${formatCausalMarkerRef(end.marker, formatTimestamp)} [${end.fieldKey}]`;
+}
+
+/**
+ * Format a MarkerCauseResult as plain text.
+ */
+export function formatMarkerCauseResult(
+  result: WithContext<MarkerCauseResult>
+): string {
+  const contextHeader = formatContextHeader(result.context);
+  const formatTimestamp = createTimestampFormatter(result.context);
+  const lines: string[] = [];
+  lines.push(
+    `Causal links for marker ${result.markerHandle}: ${result.markerName}`
+  );
+  lines.push(`Thread: ${result.threadHandle} (${result.friendlyThreadName})`);
+  lines.push(
+    result.end !== null
+      ? `Time: ${formatTimestamp(result.start)} - ${formatTimestamp(result.end)} (${formatDuration(result.end - result.start)})`
+      : `Time: ${formatTimestamp(result.start)} (instant)`
+  );
+
+  if (!result.hasCausalSchema) {
+    lines.push(
+      '',
+      'Warning: this profile has no marker schema with a causal field, so it was recorded without causal markers.'
+    );
+  } else if (result.occurrences.length === 0) {
+    lines.push('', 'This marker has no causal fields.');
+  }
+
+  for (const occurrence of result.occurrences) {
+    lines.push(
+      '',
+      `${occurrenceTitle(occurrence.role)} (field ${occurrence.fieldKey}, id ${occurrence.id})`
+    );
+    if (occurrence.role === 'trigger') {
+      const effects = occurrence.effects ?? [];
+      if (effects.length === 0) {
+        lines.push(
+          '  Caused no effect (no later effect consumed this trigger).'
+        );
+      }
+      for (const effect of effects) {
+        lines.push(
+          `  ${effect.isPrimary ? 'Primary cause of' : 'Alternate cause of'}: ${formatCausalLinkEnd(effect, formatTimestamp)}`
+        );
+      }
+      if (occurrence.effectCount !== undefined) {
+        lines.push(
+          `  ... ${occurrence.effectCount - effects.length} more effects not shown`
+        );
+      }
+    } else if (occurrence.causes?.kind === 'known') {
+      lines.push(
+        `  Caused by: ${formatCausalLinkEnd(occurrence.causes.primary, formatTimestamp)}`
+      );
+      for (const alternate of occurrence.causes.alternates) {
+        lines.push(
+          `  Also caused by (alternate): ${formatCausalLinkEnd(alternate, formatTimestamp)}`
+        );
+      }
+    } else {
+      lines.push(
+        '  Cause unknown: no open trigger with this id (a dropped marker, or the source is not instrumented).'
+      );
+    }
+  }
+
+  if (result.enclosing) {
+    lines.push(
+      '',
+      `Emitted from within: ${formatCausalLinkEnd(result.enclosing, formatTimestamp)}`
+    );
+  }
+  lines.push(
+    '',
+    `Use 'profiler-cli marker critical-path ${result.markerHandle}' to follow the chain back.`
+  );
+  return `${contextHeader}\n\n${lines.join('\n')}`;
+}
+
+function occurrenceTitle(role: 'trigger' | 'effect' | 'shared-effect'): string {
+  switch (role) {
+    case 'trigger':
+      return 'Trigger';
+    case 'effect':
+      return 'Effect';
+    case 'shared-effect':
+      return 'Shared effect (does not consume its triggers)';
+    default:
+      throw assertExhaustiveCheck(role);
+  }
+}
+
+const CRITICAL_PATH_STOP_DESCRIPTIONS = {
+  root: 'the chain starts here: no causal effect marker covers this point, so nothing is known to have caused it (the enclosing markers, if any, hint at what to instrument to extend the path)',
+  'unknown-cause':
+    'the effect at the start of the chain has no open trigger (a dropped marker, or the source is not instrumented)',
+  'max-depth': 'reached --max-depth; raise it to follow the chain further',
+  'profile-start': 'reached the start of the profile',
+  'non-decreasing-time':
+    'the next hop did not go back in time (a trigger and effect with the same timestamp)',
+  'revisited-marker':
+    'the chain came back to a marker it had already visited (a self-link or cycle)',
+} as const;
+
+function percentOf(value: number, total: number): string {
+  return total > 0 ? `${Math.round((value / total) * 100)}%` : '0%';
+}
+
+function formatCriticalPathSegment(
+  segment: CriticalPathSegment,
+  index: number,
+  formatTimestamp: (time: number) => string
+): string[] {
+  const label = segment.kind.padEnd(13);
+  const range =
+    segment.end > segment.start
+      ? `${formatTimestamp(segment.start)} - ${formatTimestamp(segment.end)} (${formatDuration(segment.duration)}) zoom push ${segment.startName},${segment.endName}`
+      : `at ${formatTimestamp(segment.start)} (${segment.startName})`;
+  const where =
+    segment.kind === 'wait'
+      ? `${segment.sourceThreadHandle} (${segment.sourceThreadName}) -> ${segment.threadHandle} (${segment.friendlyThreadName})`
+      : `${segment.threadHandle} (${segment.friendlyThreadName})`;
+  const lines = [`  [${index + 1}] ${label} ${where}  ${range}`];
+  switch (segment.kind) {
+    case 'running':
+      lines.push(
+        `        in ${segment.entryMarker!.markerHandle} "${segment.entryMarker!.name}"`
+      );
+      break;
+    case 'wait': {
+      lines.push(
+        `        trigger ${segment.triggerMarker!.markerHandle} "${segment.triggerMarker!.name}" on ${segment.triggerMarker!.threadHandle}` +
+          ` -> effect ${segment.effectMarker!.markerHandle} "${segment.effectMarker!.name}" on ${segment.effectMarker!.threadHandle}`
+      );
+      let detail = `        ${formatDuration(segment.busyMs ?? 0)} busy (queued behind other work), ${formatDuration(segment.idleMs ?? 0)} idle`;
+      if (segment.alternateCauseCount) {
+        detail += `; ${segment.alternateCauseCount} alternate cause${segment.alternateCauseCount === 1 ? '' : 's'} not followed (see marker cause)`;
+      }
+      lines.push(detail);
+      break;
+    }
+    case 'unknown-cause':
+      lines.push(
+        `        effect ${segment.entryMarker!.markerHandle} "${segment.entryMarker!.name}" has no known trigger`
+      );
+      break;
+    case 'root': {
+      const enclosing = segment.enclosingMarkers ?? [];
+      lines.push(
+        enclosing.length === 0
+          ? '        no enclosing marker'
+          : `        chain starts inside: ${enclosing
+              .map(
+                (m) =>
+                  `${m.markerHandle} "${m.name}" (${formatCausalTimeRange(m, formatTimestamp)})`
+              )
+              .join(', ')}`
+      );
+      break;
+    }
+    default:
+      throw assertExhaustiveCheck(segment.kind);
+  }
+  return lines;
+}
+
+/**
+ * Format a MarkerCriticalPathResult as plain text.
+ */
+export function formatMarkerCriticalPathResult(
+  result: WithContext<MarkerCriticalPathResult>
+): string {
+  const contextHeader = formatContextHeader(result.context);
+  const formatTimestamp = createTimestampFormatter(result.context);
+  const lines: string[] = [];
+  lines.push(
+    `Critical path to marker ${result.markerHandle}: ${result.markerName}`
+  );
+  lines.push(
+    `Thread: ${result.threadHandle} (${result.friendlyThreadName}), walk started at ${formatTimestamp(result.walkStart)}, max depth ${result.maxDepth}`
+  );
+
+  for (const warning of result.warnings) {
+    lines.push('', `Warning: ${warning}`);
+  }
+
+  const { running, waitBusy, waitIdle } = result.totalsByKind;
+  const total = result.totalMs;
+  lines.push(
+    '',
+    `Path length ${formatDuration(total)}: ` +
+      `running ${formatDuration(running)} (${percentOf(running, total)}), ` +
+      `waiting ${formatDuration(waitBusy + waitIdle)} (${percentOf(waitBusy + waitIdle, total)}; ${formatDuration(waitBusy)} busy, ${formatDuration(waitIdle)} idle)`
+  );
+
+  lines.push('', 'Segments, oldest first:');
+  result.segments.forEach((segment, index) => {
+    lines.push(...formatCriticalPathSegment(segment, index, formatTimestamp));
+  });
+
+  lines.push('', 'By thread:');
+  for (const thread of result.totalsByThread) {
+    lines.push(
+      `  ${thread.threadHandle} (${thread.friendlyThreadName}): ${formatDuration(thread.total)} ` +
+        `(running ${formatDuration(thread.running)}, wait busy ${formatDuration(thread.waitBusy)}, ` +
+        `wait idle ${formatDuration(thread.waitIdle)})`
+    );
+  }
+
+  lines.push(
+    '',
+    `Stopped: ${CRITICAL_PATH_STOP_DESCRIPTIONS[result.stopReason]}.`
+  );
+  return `${contextHeader}\n\n${lines.join('\n')}`;
 }
 
 /**

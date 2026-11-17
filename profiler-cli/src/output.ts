@@ -19,6 +19,8 @@ import {
   formatThreadInfoResult,
   formatThreadListResult,
   formatMarkerStackResult,
+  formatMarkerCauseResult,
+  formatMarkerCriticalPathResult,
   formatMarkerInfoResult,
   formatMarkerInfoMultiResult,
   formatProfileInfoResult,
@@ -100,6 +102,10 @@ function formatText(result: string | CommandResult): string {
       return formatThreadListResult(result);
     case 'marker-stack':
       return formatMarkerStackResult(result);
+    case 'marker-cause':
+      return formatMarkerCauseResult(result);
+    case 'marker-critical-path':
+      return formatMarkerCriticalPathResult(result);
     case 'marker-info':
       return formatMarkerInfoResult(result);
     case 'marker-info-multi':

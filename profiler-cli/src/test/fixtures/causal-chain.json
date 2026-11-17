@@ -1,0 +1,619 @@
+{
+  "meta": {
+    "interval": 1,
+    "startTime": 0,
+    "abi": "",
+    "misc": "",
+    "oscpu": "",
+    "platform": "",
+    "processType": 0,
+    "extensions": {
+      "id": [],
+      "name": [],
+      "baseURL": [],
+      "length": 0
+    },
+    "categories": [
+      {
+        "name": "Other",
+        "color": "grey",
+        "subcategories": ["Other"]
+      },
+      {
+        "name": "Idle",
+        "color": "transparent",
+        "subcategories": ["Other"]
+      },
+      {
+        "name": "Layout",
+        "color": "purple",
+        "subcategories": ["Other"]
+      },
+      {
+        "name": "JavaScript",
+        "color": "yellow",
+        "subcategories": ["Other"]
+      },
+      {
+        "name": "GC / CC",
+        "color": "orange",
+        "subcategories": ["Other"]
+      },
+      {
+        "name": "Network",
+        "color": "lightblue",
+        "subcategories": ["Other"]
+      },
+      {
+        "name": "Graphics",
+        "color": "green",
+        "subcategories": ["Other"]
+      },
+      {
+        "name": "DOM",
+        "color": "blue",
+        "subcategories": ["Other"]
+      }
+    ],
+    "product": "Firefox",
+    "stackwalk": 0,
+    "toolkit": "",
+    "version": 38,
+    "preprocessedProfileVersion": 79,
+    "appBuildID": "",
+    "sourceURL": "",
+    "physicalCPUs": 0,
+    "logicalCPUs": 0,
+    "CPUName": "",
+    "symbolicated": true,
+    "markerSchema": [
+      {
+        "name": "GCMajor",
+        "display": ["marker-chart", "marker-table", "timeline-memory"],
+        "fields": [],
+        "color": "orange",
+        "timelineStyle": {
+          "squareCorners": true
+        }
+      },
+      {
+        "name": "GCMinor",
+        "display": ["marker-chart", "marker-table", "timeline-memory"],
+        "fields": [],
+        "color": "orange",
+        "timelineStyle": {
+          "top": 6
+        }
+      },
+      {
+        "name": "GCSlice",
+        "display": ["marker-chart", "marker-table", "timeline-memory"],
+        "fields": [],
+        "color": "orange",
+        "timelineStyle": {
+          "top": 6
+        }
+      },
+      {
+        "name": "CC",
+        "tooltipLabel": "Cycle Collect",
+        "display": ["marker-chart", "marker-table", "timeline-memory"],
+        "fields": [],
+        "color": "yellow",
+        "timelineStyle": {
+          "squareCorners": true
+        }
+      },
+      {
+        "name": "FileIO",
+        "tableLabel": "{marker.data.source ? '(' : ''}{marker.data.source}{marker.data.source ? ') ' : ''}{marker.data.operation}{marker.data.filename ? ' — ' : ''}{marker.data.filename}",
+        "display": ["marker-chart", "marker-table"],
+        "fields": [
+          {
+            "key": "operation",
+            "label": "Operation",
+            "format": "string"
+          },
+          {
+            "key": "source",
+            "label": "Source",
+            "format": "string"
+          },
+          {
+            "key": "filename",
+            "label": "Filename",
+            "format": "file-path"
+          }
+        ],
+        "color": "blue"
+      },
+      {
+        "name": "MediaSample",
+        "display": ["marker-chart", "marker-table"],
+        "fields": [
+          {
+            "key": "sampleStartTimeUs",
+            "label": "Sample start time",
+            "format": "microseconds"
+          },
+          {
+            "key": "sampleEndTimeUs",
+            "label": "Sample end time",
+            "format": "microseconds"
+          }
+        ]
+      },
+      {
+        "name": "Styles",
+        "display": ["marker-chart", "marker-table", "timeline-overview"],
+        "fields": [
+          {
+            "key": "elementsTraversed",
+            "label": "Elements traversed",
+            "format": "integer"
+          },
+          {
+            "key": "elementsStyled",
+            "label": "Elements styled",
+            "format": "integer"
+          },
+          {
+            "key": "elementsMatched",
+            "label": "Elements matched",
+            "format": "integer"
+          },
+          {
+            "key": "stylesShared",
+            "label": "Styles shared",
+            "format": "integer"
+          },
+          {
+            "key": "stylesReused",
+            "label": "Styles reused",
+            "format": "integer"
+          }
+        ],
+        "color": "teal",
+        "timelineStyle": {
+          "top": 7
+        }
+      },
+      {
+        "name": "PreferenceRead",
+        "display": ["marker-chart", "marker-table"],
+        "fields": [
+          {
+            "key": "prefName",
+            "label": "Name",
+            "format": "string"
+          },
+          {
+            "key": "prefKind",
+            "label": "Kind",
+            "format": "string"
+          },
+          {
+            "key": "prefType",
+            "label": "Type",
+            "format": "string"
+          },
+          {
+            "key": "prefValue",
+            "label": "Value",
+            "format": "string",
+            "containsPII": ["preference-value"]
+          }
+        ]
+      },
+      {
+        "name": "UserTiming",
+        "tooltipLabel": "{marker.data.name}",
+        "chartLabel": "{marker.data.name}",
+        "tableLabel": "{marker.data.name}",
+        "display": ["marker-chart", "marker-table"],
+        "fields": [
+          {
+            "key": "name",
+            "label": "Name",
+            "format": "string"
+          },
+          {
+            "key": "entryType",
+            "label": "Entry Type",
+            "format": "string"
+          }
+        ],
+        "description": "UserTiming is created using the DOM APIs performance.mark() and performance.measure()."
+      },
+      {
+        "name": "Text",
+        "tableLabel": "{marker.name} — {marker.data.name}",
+        "chartLabel": "{marker.name} — {marker.data.name}",
+        "display": ["marker-chart", "marker-table"],
+        "fields": [
+          {
+            "key": "name",
+            "label": "Details",
+            "format": "string",
+            "containsPII": ["url"]
+          }
+        ]
+      },
+      {
+        "name": "Log",
+        "display": ["marker-table"],
+        "tableLabel": "({marker.data.module}) {marker.data.name}",
+        "fields": [
+          {
+            "key": "module",
+            "label": "Module",
+            "format": "string"
+          },
+          {
+            "key": "name",
+            "label": "Name",
+            "format": "string"
+          },
+          {
+            "key": "level",
+            "label": "Level",
+            "format": "unique-string"
+          },
+          {
+            "key": "message",
+            "label": "Message",
+            "format": "unique-string"
+          }
+        ]
+      },
+      {
+        "name": "DOMEvent",
+        "tooltipLabel": "{marker.data.eventType} — DOMEvent",
+        "tableLabel": "{marker.data.eventType}",
+        "chartLabel": "{marker.data.eventType}",
+        "display": ["marker-chart", "marker-table", "timeline-overview"],
+        "fields": [
+          {
+            "key": "latency",
+            "label": "Latency",
+            "format": "duration"
+          },
+          {
+            "key": "eventType",
+            "label": "Event Type",
+            "format": "string"
+          }
+        ]
+      },
+      {
+        "name": "tracing",
+        "display": ["marker-chart", "marker-table", "timeline-overview"],
+        "fields": [
+          {
+            "key": "category",
+            "label": "Type",
+            "format": "string"
+          }
+        ]
+      },
+      {
+        "name": "Layout",
+        "display": ["marker-chart", "marker-table", "timeline-overview"],
+        "fields": [
+          {
+            "key": "category",
+            "label": "Type",
+            "format": "string"
+          }
+        ]
+      },
+      {
+        "name": "IPC",
+        "tooltipLabel": "IPC — {marker.data.niceDirection}",
+        "tableLabel": "{marker.name} — {marker.data.messageType} — {marker.data.niceDirection}",
+        "chartLabel": "{marker.data.messageType}",
+        "display": ["marker-chart", "marker-table", "timeline-ipc"],
+        "fields": [
+          {
+            "key": "messageType",
+            "label": "Type",
+            "format": "string"
+          },
+          {
+            "key": "sync",
+            "label": "Sync",
+            "format": "string"
+          },
+          {
+            "key": "sendThreadName",
+            "label": "From",
+            "format": "string"
+          },
+          {
+            "key": "recvThreadName",
+            "label": "To",
+            "format": "string"
+          }
+        ]
+      },
+      {
+        "name": "VisibleInTimelineOverview",
+        "display": ["marker-chart", "marker-table", "timeline-overview"],
+        "fields": []
+      },
+      {
+        "name": "StringTesting",
+        "display": ["marker-chart", "marker-table", "timeline-overview"],
+        "fields": [
+          {
+            "key": "string",
+            "label": "string field",
+            "format": "string"
+          },
+          {
+            "key": "uniqueString",
+            "label": "unique string field",
+            "format": "unique-string"
+          }
+        ]
+      },
+      {
+        "name": "MarkerWithHiddenField",
+        "display": ["marker-chart", "marker-table", "timeline-overview"],
+        "fields": [
+          {
+            "key": "hiddenString",
+            "label": "Hidden string",
+            "format": "string",
+            "hidden": true
+          }
+        ]
+      },
+      {
+        "name": "CausalTrigger",
+        "display": ["marker-chart", "marker-table"],
+        "fields": [
+          {
+            "key": "trigger",
+            "label": "Trigger",
+            "format": "causal-trigger-id"
+          }
+        ]
+      },
+      {
+        "name": "CausalEffect",
+        "display": ["marker-chart", "marker-table"],
+        "isStackBased": true,
+        "fields": [
+          {
+            "key": "effect",
+            "label": "Effect",
+            "format": "causal-effect-id"
+          }
+        ]
+      }
+    ]
+  },
+  "libs": [],
+  "pages": [],
+  "shared": {
+    "stackTable": {
+      "frame": [],
+      "prefixOffset": [],
+      "length": 0
+    },
+    "frameTable": {
+      "flags": [],
+      "address": [],
+      "category": [],
+      "subcategory": [],
+      "func": [],
+      "lib": [],
+      "nativeSymbol": [],
+      "innerWindowID": [],
+      "line": [],
+      "column": [],
+      "originalLocation": [],
+      "length": 0
+    },
+    "funcTable": {
+      "flags": [],
+      "name": [],
+      "resource": [],
+      "source": [],
+      "lineNumber": [],
+      "columnNumber": [],
+      "originalLocation": [],
+      "length": 0
+    },
+    "resourceTable": {
+      "name": [],
+      "host": [],
+      "type": [],
+      "length": 0
+    },
+    "nativeSymbols": {
+      "libIndex": [],
+      "address": [],
+      "name": [],
+      "functionSize": [],
+      "length": 0
+    },
+    "sources": {
+      "id": [],
+      "filename": [],
+      "startLine": [],
+      "startColumn": [],
+      "sourceMapURL": [],
+      "content": [],
+      "generatedSource": [],
+      "length": 0
+    },
+    "stringArray": [
+      "Startup",
+      "Run A",
+      "Dispatch B",
+      "Handle result",
+      "Refresh tick",
+      "Orphan task",
+      "Idle",
+      "Style",
+      "Layout",
+      "Paint",
+      "After",
+      "Dispatch A",
+      "Run B",
+      "Dispatch C",
+      "Request F",
+      "00000000000000a1",
+      "00000000000000b2",
+      "00000000000000c3",
+      "00000000000000f4",
+      "00000000000000d5"
+    ],
+    "sourceLocationTable": {
+      "source": [],
+      "line": [],
+      "column": [],
+      "length": 0
+    }
+  },
+  "threads": [
+    {
+      "processType": "default",
+      "processStartupTime": 0,
+      "processShutdownTime": null,
+      "registerTime": 0,
+      "unregisterTime": null,
+      "pausedRanges": [],
+      "name": "GeckoMain",
+      "isMainThread": true,
+      "pid": "100",
+      "tid": 0,
+      "samples": {
+        "weightType": "samples",
+        "weight": null,
+        "eventDelay": [],
+        "stack": [],
+        "time": [],
+        "length": 0
+      },
+      "markers": {
+        "data": [
+          null,
+          {
+            "type": "CausalEffect",
+            "effect": 15
+          },
+          {
+            "type": "CausalTrigger",
+            "trigger": 16
+          },
+          {
+            "type": "CausalEffect",
+            "effect": 17
+          },
+          {
+            "type": "CausalEffect",
+            "effect": 18
+          },
+          {
+            "type": "CausalEffect",
+            "effect": 19
+          }
+        ],
+        "name": [0, 1, 2, 3, 4, 5],
+        "startTime": [0, 40, 50, 100, 130, 150],
+        "endTime": [0, 60, 0, 110, 140, 160],
+        "phase": [0, 1, 0, 1, 1, 1],
+        "category": [0, 0, 0, 0, 0, 0],
+        "length": 6
+      }
+    },
+    {
+      "processType": "default",
+      "processStartupTime": 0,
+      "processShutdownTime": null,
+      "registerTime": 0,
+      "unregisterTime": null,
+      "pausedRanges": [],
+      "name": "DOM Worker",
+      "isMainThread": false,
+      "pid": "100",
+      "tid": 1,
+      "samples": {
+        "weightType": "samples",
+        "weight": null,
+        "eventDelay": [],
+        "stack": [],
+        "time": [],
+        "length": 0
+      },
+      "markers": {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "type": "CausalTrigger",
+            "trigger": 15
+          },
+          {
+            "type": "CausalEffect",
+            "effect": 16
+          },
+          {
+            "type": "CausalTrigger",
+            "trigger": 17
+          },
+          {
+            "type": "CausalTrigger",
+            "trigger": 18
+          }
+        ],
+        "name": [6, 7, 8, 9, 10, 11, 12, 13, 14],
+        "startTime": [0, 5, 10, 15, 21, 20, 70, 80, 120],
+        "endTime": [50, 35, 30, 25, 30, 0, 90, 0, 0],
+        "phase": [1, 1, 1, 1, 1, 0, 1, 0, 0],
+        "category": [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "length": 9
+      }
+    },
+    {
+      "processType": "default",
+      "processStartupTime": 0,
+      "processShutdownTime": null,
+      "registerTime": 0,
+      "unregisterTime": null,
+      "pausedRanges": [],
+      "name": "Socket Thread",
+      "isMainThread": false,
+      "pid": "100",
+      "tid": 2,
+      "samples": {
+        "weightType": "samples",
+        "weight": null,
+        "eventDelay": [],
+        "stack": [],
+        "time": [],
+        "length": 0
+      },
+      "markers": {
+        "data": [
+          {
+            "type": "CausalTrigger",
+            "trigger": 18
+          }
+        ],
+        "name": [14],
+        "startTime": [125],
+        "endTime": [0],
+        "phase": [0],
+        "category": [0],
+        "length": 1
+      }
+    }
+  ]
+}

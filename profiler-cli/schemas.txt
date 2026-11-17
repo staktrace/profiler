@@ -324,6 +324,62 @@ profiler-cli marker info <handle>... --json
     context: SessionContext
   }
 
+CausalMarkerRef:
+  { markerHandle, threadHandle, friendlyThreadName, name,
+    start, end: number | null }      // ms since profile start
+
+CausalLinkEnd:
+  { marker: CausalMarkerRef, fieldKey, role: "trigger" | "effect" | "shared-effect" }
+
+profiler-cli marker cause <handle> --json
+  {
+    type: "marker-cause",
+    threadHandle, friendlyThreadName, markerHandle, markerIndex, markerName,
+    start, end: number | null,
+    hasCausalSchema,                 // false: profile recorded without causal markers
+    occurrences: [{                  // one per causal field of the marker
+      fieldKey, role, id,            // id: 16-digit hex string
+      causes?: { kind: "unknown" }   // effects only
+             | { kind: "known", primary: CausalLinkEnd, alternates: [CausalLinkEnd] },
+      effects?: [CausalLinkEnd & { isPrimary }],   // triggers only (at most 50)
+      effectCount?                   // triggers only, set when effects was cut short
+    }],
+    enclosing: CausalLinkEnd | null, // innermost effect-carrying interval containing the marker
+    context: SessionContext
+  }
+
+profiler-cli marker critical-path <handle> [--max-depth N] --json
+  {
+    type: "marker-critical-path",
+    threadHandle, friendlyThreadName, markerHandle, markerIndex, markerName,
+    start, end: number | null,       // the marker
+    walkStart,                       // where the backward walk began (marker end)
+    maxDepth,
+    segments: [{                     // chronological
+      kind: "running" | "wait" | "root" | "unknown-cause",
+      threadHandle, friendlyThreadName,   // for a wait: the destination (waiting) thread
+      start, end, duration,          // ms
+      startName, endName,            // timestamp names, usable with "zoom push"
+      entryMarker?: CausalMarkerRef, // running, unknown-cause, wait: the entry effect
+      triggerMarker?, effectMarker?: CausalMarkerRef,   // wait only
+      sourceThreadHandle?, sourceThreadName?,           // wait only
+      alternateCauseCount?,          // wait only: other triggers, not followed
+      busyMs?, idleMs?,              // wait only: busy = inside other top-level causal intervals
+      enclosingMarkers?: [CausalMarkerRef]   // root only (zero length): up to 3 interval markers
+                                     // of any type on the thread containing the root time,
+                                     // innermost first; [] if none
+    }],
+    totalMs,                         // running + waitBusy + waitIdle
+    totalsByKind: { running, waitBusy, waitIdle },
+    totalsByThread: [{ threadHandle, friendlyThreadName, running, waitBusy,
+                       waitIdle, total }],
+    stopReason: "root" | "unknown-cause" | "max-depth" | "profile-start" |
+                "non-decreasing-time" | "revisited-marker",
+    hasCausalSchema,
+    warnings: [string],              // e.g. the profile has no causal schema
+    context: SessionContext
+  }
+
 profiler-cli status --json
   {
     type: "status",
