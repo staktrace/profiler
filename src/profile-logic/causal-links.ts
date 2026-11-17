@@ -463,3 +463,70 @@ export function findCausalEntry(
   }
   return interval;
 }
+
+// Per graph, per thread: the effect-carrying intervals that are not nested in
+// another one, sorted by start. They never overlap each other.
+const topLevelIntervalsCache = new WeakMap<CausalGraph, CausalOccurrence[][]>();
+
+function getTopLevelIntervals(
+  graph: CausalGraph,
+  threadIndex: number
+): CausalOccurrence[] {
+  let perThread = topLevelIntervalsCache.get(graph);
+  if (perThread === undefined) {
+    perThread = graph.entryIndexByThread.map(({ intervals, parents }) =>
+      intervals.filter((_, i) => parents[i] === -1)
+    );
+    topLevelIntervalsCache.set(graph, perThread);
+  }
+  return perThread[threadIndex] ?? [];
+}
+
+/**
+ * How much of [start, end] a thread spent inside top-level effect-carrying
+ * intervals, i.e. running work that was itself caused by something. Used to
+ * tell a wait that was queued behind other work from one where the thread was
+ * idle. Intervals that contain `excludeContainingTime` (other than ones that
+ * end exactly there, which came before it) are not counted, so that the work
+ * the wait ends in is not counted as work the wait was queued behind.
+ * Incomplete intervals extend to the end of the range.
+ */
+export function getBusyTime(
+  graph: CausalGraph,
+  threadIndex: number,
+  start: number,
+  end: number,
+  excludeContainingTime?: number
+): number {
+  if (!(end > start)) {
+    return 0;
+  }
+  const intervals = getTopLevelIntervals(graph, threadIndex);
+  // First interval whose end is after `start`. Top-level intervals are
+  // disjoint, so their ends are sorted too.
+  let lo = 0;
+  let hi = intervals.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if ((intervals[mid].end as number) > start) {
+      hi = mid;
+    } else {
+      lo = mid + 1;
+    }
+  }
+  let busy = 0;
+  for (let i = lo; i < intervals.length && intervals[i].time < end; i++) {
+    const interval = intervals[i];
+    if (
+      excludeContainingTime !== undefined &&
+      interval.time <= excludeContainingTime &&
+      ((interval.end as number) > excludeContainingTime ||
+        interval.time === excludeContainingTime)
+    ) {
+      continue;
+    }
+    busy +=
+      Math.min(end, interval.end as number) - Math.max(start, interval.time);
+  }
+  return busy;
+}

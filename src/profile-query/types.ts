@@ -942,6 +942,152 @@ export type MarkerStackResult = {
   stack: StackTraceData | null;
 };
 
+/** A marker named in a causal result, with enough to find it again. */
+export type CausalMarkerRef = {
+  markerHandle: string;
+  threadHandle: string;
+  friendlyThreadName: string;
+  name: string;
+  start: number; // Ms since the profile start, as in `MarkerInfoResult`
+  end: number | null;
+};
+
+/** One end of a causal link: a marker and the field that carries the id. */
+export type CausalLinkEnd = {
+  marker: CausalMarkerRef;
+  fieldKey: string;
+  role: 'trigger' | 'effect' | 'shared-effect';
+};
+
+/** What `marker cause` reports about one causal field of a marker. */
+export type MarkerCauseOccurrence = {
+  fieldKey: string;
+  role: 'trigger' | 'effect' | 'shared-effect';
+  /** The id, a 16-digit hex string. */
+  id: string;
+  /**
+   * Effects only: the triggers that made this effect necessary. `unknown` when
+   * no trigger of the id was open (a dropped marker or an uninstrumented
+   * source).
+   */
+  causes?:
+    | { kind: 'unknown' }
+    | {
+        kind: 'known';
+        primary: CausalLinkEnd;
+        alternates: CausalLinkEnd[];
+      };
+  /** Triggers only: the effects this trigger caused, in time order. */
+  effects?: Array<CausalLinkEnd & { isPrimary: boolean }>;
+  /** Triggers only: set when `effects` was cut short. */
+  effectCount?: number;
+};
+
+export type MarkerCauseResult = {
+  type: 'marker-cause';
+  threadHandle: string;
+  friendlyThreadName: string;
+  markerHandle: string;
+  markerIndex: number;
+  markerName: string;
+  start: number;
+  end: number | null;
+  /** False when no marker schema of the profile has a causal field. */
+  hasCausalSchema: boolean;
+  /** One entry per causal field of the marker. Empty if it has none. */
+  occurrences: MarkerCauseOccurrence[];
+  /**
+   * The innermost interval marker on the same thread that contains this marker's
+   * start and carries an effect field, i.e. the work that emitted this marker
+   * if it is a trigger. null if there is none, or if it is the marker itself.
+   */
+  enclosing: CausalLinkEnd | null;
+};
+
+export type CriticalPathSegmentKind =
+  | 'running'
+  | 'wait'
+  | 'root'
+  | 'unknown-cause';
+
+export type CriticalPathSegment = {
+  kind: CriticalPathSegmentKind;
+  /** For a wait, the destination thread: the one that was waiting. */
+  threadHandle: string;
+  friendlyThreadName: string;
+  /** Ms since the profile start. */
+  start: number;
+  end: number;
+  duration: number;
+  /** Timestamp names for `start` and `end`, usable with `zoom push`. */
+  startName: string;
+  endName: string;
+  /** running and unknown-cause: the entry effect marker. */
+  entryMarker?: CausalMarkerRef;
+  /**
+   * root only: up to 3 interval markers of any type on the segment's thread
+   * that contain the root time, innermost first (latest start, then shortest).
+   * Empty if there is none. A hint at what to instrument.
+   */
+  enclosingMarkers?: CausalMarkerRef[];
+  /** wait only. */
+  triggerMarker?: CausalMarkerRef;
+  effectMarker?: CausalMarkerRef;
+  sourceThreadHandle?: string;
+  sourceThreadName?: string;
+  /** wait only: other triggers coalesced into the effect (not walked). */
+  alternateCauseCount?: number;
+  /** wait only: time spent inside other top-level causal intervals. */
+  busyMs?: number;
+  /** wait only: time where the destination thread had no causal work. */
+  idleMs?: number;
+};
+
+export type CriticalPathStopReason =
+  | 'root'
+  | 'unknown-cause'
+  | 'max-depth'
+  | 'profile-start'
+  | 'non-decreasing-time'
+  | 'revisited-marker';
+
+export type CriticalPathTotals = {
+  running: number;
+  waitBusy: number;
+  waitIdle: number;
+};
+
+export type MarkerCriticalPathResult = {
+  type: 'marker-critical-path';
+  threadHandle: string;
+  friendlyThreadName: string;
+  markerHandle: string;
+  markerIndex: number;
+  markerName: string;
+  /** The marker's start and end (or start again, for an instant marker). */
+  start: number;
+  end: number | null;
+  /** Ms since the profile start: where the walk began. */
+  walkStart: number;
+  maxDepth: number;
+  /** In chronological order. */
+  segments: CriticalPathSegment[];
+  /** Running + wait busy + wait idle, in ms. The root segment adds nothing. */
+  totalMs: number;
+  totalsByKind: CriticalPathTotals;
+  /** Sorted by total, descending. */
+  totalsByThread: Array<
+    CriticalPathTotals & {
+      threadHandle: string;
+      friendlyThreadName: string;
+      total: number;
+    }
+  >;
+  stopReason: CriticalPathStopReason;
+  hasCausalSchema: boolean;
+  warnings: string[];
+};
+
 export type StackTraceData = {
   capturedAt?: number; // Milliseconds since the profile start (`rootRange.start`)
   frames: FunctionDisplayInfo[];

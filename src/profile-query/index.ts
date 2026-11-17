@@ -95,6 +95,13 @@ import {
 } from './formatters/thread-info';
 import { collectFunctionCategoryBreakdowns } from './formatters/category-breakdown';
 import {
+  collectMarkerCause,
+  collectMarkerCriticalPath,
+  computeCausalData,
+  DEFAULT_CRITICAL_PATH_MAX_DEPTH,
+  type CausalData,
+} from './formatters/marker-causal';
+import {
   collectThreadMarkers,
   collectThreadNetwork,
   collectMarkerStack,
@@ -137,6 +144,8 @@ import type {
   ThreadListOptions,
   ThreadListResult,
   MarkerStackResult,
+  MarkerCauseResult,
+  MarkerCriticalPathResult,
   MarkerInfoResult,
   MarkerInfoMultiResult,
   ProfileInfoResult,
@@ -202,6 +211,8 @@ export class ProfileQuerier {
   _threadMap: ThreadMap;
   _markerMap: MarkerMap;
   _archiveCache: Map<string, Promise<Uint8Array>>;
+  // The causal graph spans all threads, so it is computed on first use and kept.
+  _causalData: CausalData | null = null;
   /**
    * Per-thread sizes of each filter "push group". One `filter push` adds one
    * entry whose value is the number of Redux transforms it dispatched (e.g.
@@ -1828,6 +1839,58 @@ export class ProfileQuerier {
       this._markerMap,
       this._threadMap,
       markerHandle
+    );
+    return {
+      ...result,
+      context: this._getContextForThreadHandle(result.threadHandle),
+    };
+  }
+
+  private _getCausalData(): CausalData {
+    if (this._causalData === null) {
+      this._causalData = computeCausalData(this._store);
+    }
+    return this._causalData;
+  }
+
+  /**
+   * One causal hop around a marker: its causal fields, the trigger(s) that
+   * caused it (if it is an effect), the effects it caused (if it is a trigger),
+   * and the effect-carrying interval it is nested in.
+   */
+  async markerCause(
+    markerHandle: string
+  ): Promise<WithContext<MarkerCauseResult>> {
+    const result = collectMarkerCause(
+      this._store,
+      this._getCausalData(),
+      this._markerMap,
+      this._threadMap,
+      this._timestampManager,
+      markerHandle
+    );
+    return {
+      ...result,
+      context: this._getContextForThreadHandle(result.threadHandle),
+    };
+  }
+
+  /**
+   * Walk causal links backward from the end of a marker, across threads, and
+   * report the critical path to it as chronological segments.
+   */
+  async markerCriticalPath(
+    markerHandle: string,
+    options: { maxDepth?: number } = {}
+  ): Promise<WithContext<MarkerCriticalPathResult>> {
+    const result = collectMarkerCriticalPath(
+      this._store,
+      this._getCausalData(),
+      this._markerMap,
+      this._threadMap,
+      this._timestampManager,
+      markerHandle,
+      options.maxDepth ?? DEFAULT_CRITICAL_PATH_MAX_DEPTH
     );
     return {
       ...result,
