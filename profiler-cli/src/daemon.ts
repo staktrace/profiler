@@ -570,6 +570,8 @@ export class Daemon {
             }
             return this.querier.markerCriticalPath(command.marker, {
               maxDepth: command.maxDepth,
+              follow: command.causal ? 'causal' : 'blocking',
+              maxSegments: command.maxSegments,
             });
           case 'select':
             throw new Error('unimplemented');

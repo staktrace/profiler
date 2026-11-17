@@ -390,6 +390,12 @@ class TimelineCriticalPathImpl extends React.PureComponent<Props, State> {
         if (segment.entryMarker) {
           lines.push(['In', markerOf(segment.entryMarker)]);
         }
+        if (segment.blocking) {
+          lines.push([
+            'On the path because',
+            'it ran while a later step of the path was waiting for this thread',
+          ]);
+        }
         if (segment.nestedUnknownCause) {
           lines.push(['Note', 'No recorded trigger; ran synchronously']);
         }

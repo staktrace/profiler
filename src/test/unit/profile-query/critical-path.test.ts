@@ -196,7 +196,10 @@ describe('walkCriticalPath', () => {
     const outer = b.effect(0, 'A', 20, 60);
     // Run synchronously inside A, with no trigger.
     const nested = b.effect(0, 'U', 30, 40);
-    const walk = walkCriticalPath(b.graph(), 0, 35, opts);
+    const walk = walkCriticalPath(b.graph(), 0, 35, {
+      ...opts,
+      follow: 'causal',
+    });
 
     expect(walk.stopReason).toBe('root');
     expect(walk.segments.map((s) => s.kind)).toEqual([
@@ -324,7 +327,10 @@ describe('walkCriticalPath', () => {
     b.effect(0, 'Q2', 150, 190);
     // The effect the wait ends in is W, at [170, 180].
     b.effect(0, 'W', 170, 180);
-    const walk = walkCriticalPath(b.graph(), 0, 180, opts);
+    const walk = walkCriticalPath(b.graph(), 0, 180, {
+      ...opts,
+      follow: 'causal',
+    });
 
     const wait = walk.segments.find((s) => s.kind === 'wait')!;
     expect(wait.start).toBe(100);
@@ -335,6 +341,153 @@ describe('walkCriticalPath', () => {
     expect(wait.idleMs).toBe(50);
     expect(walk.totalsByKind.waitBusy).toBe(20);
     expect(walk.totalsByKind.waitIdle).toBe(50);
+  });
+});
+
+describe('walkCriticalPath with the work that delayed each effect', () => {
+  const summary = (walk: ReturnType<typeof walkCriticalPath>) =>
+    walk.segments.map((s) => [
+      s.kind,
+      s.threadIndex,
+      s.start,
+      s.end,
+      ...(s.blocking ? ['blocking'] : []),
+    ]);
+
+  it('adds the work that ran between the trigger and the effect', () => {
+    const b = new Builder();
+    // Thread 0 runs P, then Q, then E back to back. E is triggered early in P.
+    // Q is unrelated work that was already queued.
+    const p = b.effect(0, 'P', 0, 50);
+    b.trigger(0, 'E', 10);
+    b.trigger(1, 'Q', 20);
+    const q = b.effect(0, 'Q', 50, 80);
+    b.effect(0, 'E', 80, 90);
+    const walk = walkCriticalPath(b.graph(), 0, 90, opts);
+
+    expect(summary(walk)).toEqual([
+      ['unknown-cause', 0, 0, 0],
+      ['running', 0, 0, 10],
+      ['wait', 0, 10, 80],
+      // The rest of the task that emitted the trigger, then Q.
+      ['running', 0, 10, 50, 'blocking'],
+      ['running', 0, 50, 80, 'blocking'],
+      ['running', 0, 80, 90],
+    ]);
+    expect(walk.segments[3].entryMarker).toEqual({
+      threadIndex: 0,
+      markerIndex: p,
+    });
+    expect(walk.segments[4].entryMarker).toEqual({
+      threadIndex: 0,
+      markerIndex: q,
+    });
+    expect(walk.segments[2]).toMatchObject({ busyMs: 0, idleMs: 0 });
+    expect(walk.totalsByKind).toEqual({
+      running: 90,
+      waitBusy: 0,
+      waitIdle: 0,
+    });
+
+    // The chain of causes alone reports the same span as time queued behind
+    // other work, without saying which.
+    const causal = walkCriticalPath(b.graph(), 0, 90, {
+      ...opts,
+      follow: 'causal',
+    });
+    expect(summary(causal)).toEqual([
+      ['unknown-cause', 0, 0, 0],
+      ['running', 0, 0, 10],
+      ['wait', 0, 10, 80],
+      ['running', 0, 80, 90],
+    ]);
+    expect(causal.totalsByKind).toEqual({
+      running: 20,
+      waitBusy: 70,
+      waitIdle: 0,
+    });
+  });
+
+  it('counts the time the thread was idle as waiting', () => {
+    const b = new Builder();
+    b.effect(0, 'P', 0, 50);
+    b.trigger(0, 'E', 10);
+    b.effect(0, 'E', 70, 80);
+    const walk = walkCriticalPath(b.graph(), 0, 80, opts);
+
+    expect(summary(walk)).toEqual([
+      ['unknown-cause', 0, 0, 0],
+      ['running', 0, 0, 10],
+      ['wait', 0, 10, 70],
+      ['running', 0, 10, 50, 'blocking'],
+      ['running', 0, 70, 80],
+    ]);
+    expect(walk.segments[2]).toMatchObject({ busyMs: 0, idleMs: 20 });
+    expect(walk.totalsByKind).toEqual({
+      running: 60,
+      waitBusy: 0,
+      waitIdle: 20,
+    });
+  });
+
+  it('adds nothing when the trigger arrives after the previous work ended', () => {
+    const b = new Builder();
+    b.effect(0, 'Q', 0, 50);
+    b.trigger(1, 'E', 52);
+    b.effect(0, 'E', 55, 60);
+    const walk = walkCriticalPath(b.graph(), 0, 60, opts);
+
+    expect(summary(walk)).toEqual([
+      ['root', 1, 52, 52],
+      ['wait', 0, 52, 55],
+      ['running', 0, 55, 60],
+    ]);
+  });
+
+  it('adds the work on the destination thread of a cross-thread hop', () => {
+    const b = new Builder();
+    b.trigger(1, 'E', 10);
+    const q = b.effect(0, 'Q', 5, 40);
+    b.effect(0, 'E', 40, 50);
+    const walk = walkCriticalPath(b.graph(), 0, 50, opts);
+
+    expect(summary(walk)).toEqual([
+      ['root', 1, 10, 10],
+      ['wait', 0, 10, 40],
+      ['running', 0, 10, 40, 'blocking'],
+      ['running', 0, 40, 50],
+    ]);
+    expect(walk.segments[2].entryMarker).toEqual({
+      threadIndex: 0,
+      markerIndex: q,
+    });
+  });
+
+  it('adds the start of the task that an effect is nested in', () => {
+    const b = new Builder();
+    // T is requested in P and runs nested in O, a task with no trigger (a
+    // clock), after unrelated work Q and a 10ms gap.
+    b.effect(0, 'P', 0, 50);
+    b.trigger(0, 'T', 10);
+    b.effect(0, 'Q', 60, 90);
+    const task = b.effect(0, 'O', 100, 120);
+    b.effect(0, 'T', 101, 110);
+    const walk = walkCriticalPath(b.graph(), 0, 110, opts);
+
+    expect(summary(walk)).toEqual([
+      ['unknown-cause', 0, 0, 0],
+      ['running', 0, 0, 10],
+      ['wait', 0, 10, 101],
+      ['running', 0, 10, 50, 'blocking'],
+      ['running', 0, 60, 90, 'blocking'],
+      ['running', 0, 100, 101, 'blocking'],
+      ['running', 0, 101, 110],
+    ]);
+    expect(walk.segments[5].entryMarker).toEqual({
+      threadIndex: 0,
+      markerIndex: task,
+    });
+    expect(walk.segments[2]).toMatchObject({ busyMs: 0, idleMs: 20 });
   });
 });
 

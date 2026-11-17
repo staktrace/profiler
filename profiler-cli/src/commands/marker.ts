@@ -82,15 +82,26 @@ export function registerMarkerCommand(
     marker
       .command('critical-path [handle]')
       .description(
-        'Walk causal links backward from the end of a marker, across threads, ' +
-          'and show the critical path to it as running and waiting ' +
-          'segments (e.g. m-1234). Needs a profile recorded with ' +
-          'causal markers.'
+        'Walk causal links backward from the end of a marker, across ' +
+          'threads, and show the critical path to it as running and waiting ' +
+          'segments (e.g. m-1234), including the work that ran on a thread ' +
+          'between a trigger and its effect and so delayed it. Needs a ' +
+          'profile recorded with causal markers.'
       )
       .option('--marker <handle>', 'Marker handle')
       .option(
         '--max-depth <n>',
-        'Maximum number of causal hops to follow (default: 50)'
+        'Maximum number of steps to follow (default: 100000)'
+      )
+      .option(
+        '--causal',
+        'Only show the chain of causes: report the time an effect waited ' +
+          'for a busy thread as a duration, without the work that ran'
+      )
+      .option(
+        '--max-segments <n>',
+        'List only the last <n> segments, the ones closest to the marker; ' +
+          '0 lists all of them (default: 200)'
       )
   ).action(async (handleArg: string | undefined, opts) => {
     const markerHandle = singleMarkerHandle(
@@ -108,6 +119,11 @@ export function registerMarkerCommand(
         subcommand: 'critical-path',
         marker: markerHandle,
         maxDepth,
+        causal: opts.causal ? true : undefined,
+        maxSegments:
+          opts.maxSegments !== undefined
+            ? parseIntArg('--max-segments', String(opts.maxSegments), 0)
+            : undefined,
       },
       opts
     );

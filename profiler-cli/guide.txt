@@ -110,7 +110,7 @@ CORE WORKFLOW
     profiler-cli marker info m-1234..m-1240  Inclusive range of handles, e.g. consecutive list rows
     profiler-cli marker stack m-1234         Full stack trace at the time of a marker
     profiler-cli marker cause m-1234         Causal links of a marker: what triggered it, what it triggered
-    profiler-cli marker critical-path m-1234 Walk causal links back across threads (see CAUSAL MARKERS)
+    profiler-cli marker critical-path m-1234 What the marker was waiting for, back across threads (see CAUSAL MARKERS)
     profiler-cli function info f-12          Function details (source location, library)
     profiler-cli function expand f-12        Show full untruncated function name
     profiler-cli function annotate f-12      Annotated source with per-line self/total timing
@@ -333,15 +333,37 @@ CAUSAL MARKERS AND THE CRITICAL PATH
                                                     marker, the effects it caused, and the
                                                     causal interval it is nested in
     profiler-cli marker critical-path m-1234        Walk backward from the END of the marker
-    profiler-cli marker critical-path m-1234 --max-depth 10    Follow at most 10 hops (default 50)
+    profiler-cli marker critical-path m-1234 --max-segments 0  List every segment (default: the last 200)
+    profiler-cli marker critical-path m-1234 --causal          The chain of causes instead (see below)
+    profiler-cli marker critical-path m-1234 --max-depth 10    Follow at most 10 steps (default 100000)
+
+  Work on a thread starts once its trigger has arrived AND the thread is free.
+  The walk follows the trigger of each effect back to the work that emitted it.
+  Whatever ran on the effect's thread between the trigger and the start of the
+  effect delayed it, so that work is on the path too: one running segment per
+  task, marked "delayed the next effect". This includes the rest of the task
+  that emitted the trigger when it is on the same thread (a task that requests
+  a paint and keeps working for 50ms delays that paint by 50ms). Only the time
+  the thread was idle in that span is counted as waiting.
+
+  With --causal the path is only the chain of causes: the same span is reported
+  as the "busy" part of the wait, without the work that ran.
+
+  The output has the path length, the running time grouped by what ran (the
+  quickest way to see where the time went), the segments, and totals by thread.
 
   "marker critical-path" prints chronological segments:
-    running        the thread was executing the causal interval named in the segment
+    running        the thread was executing the causal interval named in the
+                   segment. "delayed the next effect" marks work that is on the
+                   path because it ran while a later effect was waiting for the
+                   thread, not because it caused it. These segments lie inside
+                   the wait segment that precedes them.
     wait           the effect was waiting for its trigger: time from the trigger
                    to the start of the effect, on the thread that was waiting. It
-                   is split into "busy" (the thread was running other causal work,
-                   so the effect was queued behind it) and "idle". CPU scheduling
-                   delay cannot be told apart from waiting.
+                   is split into "busy" (the thread was running other causal work)
+                   and "idle". Busy is 0 unless --causal is used, since that
+                   work is listed as running segments. CPU scheduling delay
+                   cannot be told apart from waiting.
     root           zero length: the chain starts here because no causal effect
                    marker covers this point. It adds nothing to the totals (we do
                    not know the path waited since the profile start). Lists up to

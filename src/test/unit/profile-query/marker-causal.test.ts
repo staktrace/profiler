@@ -113,6 +113,27 @@ describe('ProfileQuerier causal markers', function () {
   });
 
   describe('markerCriticalPath', function () {
+    it('lists only the last segments when asked, and can follow causes only', async function () {
+      const querier = makeQuerier(getProfileWithCausalMarkers());
+      const handle = await handleFor(querier, 't-0', 'Handle result');
+      const all = await querier.markerCriticalPath(handle);
+      const last = await querier.markerCriticalPath(handle, {
+        maxSegments: 2,
+      });
+
+      expect(last.segmentCount).toBe(all.segments.length);
+      expect(last.omittedSegments).toBe(all.segments.length - 2);
+      expect(last.segments).toEqual(all.segments.slice(-2));
+      // The totals and the top contributors cover the whole path.
+      expect(last.totalMs).toBe(all.totalMs);
+      expect(last.topRunning).toEqual(all.topRunning);
+
+      const causal = await querier.markerCriticalPath(handle, {
+        follow: 'causal',
+      });
+      expect(causal.follow).toBe('causal');
+    });
+
     it('walks the three-hop chain', async function () {
       const querier = makeQuerier(getProfileWithCausalMarkers());
       const handle = await handleFor(querier, 't-0', 'Handle result');
@@ -120,7 +141,15 @@ describe('ProfileQuerier causal markers', function () {
 
       expect(result.type).toBe('marker-critical-path');
       expect(result.markerHandle).toBe(handle);
-      expect(result.maxDepth).toBe(50);
+      expect(result.maxDepth).toBe(100000);
+      expect(result.follow).toBe('blocking');
+      expect(result.segmentCount).toBe(result.segments.length);
+      expect(result.omittedSegments).toBe(0);
+      expect(result.topRunning.map((t) => t.label).sort()).toEqual([
+        'Handle result',
+        'Run A',
+        'Run B',
+      ]);
       expect(result.stopReason).toBe('root');
       expect(result.hasCausalSchema).toBe(true);
       expect(result.warnings).toEqual([]);

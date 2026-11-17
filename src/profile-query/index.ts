@@ -1881,7 +1881,11 @@ export class ProfileQuerier {
    */
   async markerCriticalPath(
     markerHandle: string,
-    options: { maxDepth?: number } = {}
+    options: {
+      maxDepth?: number;
+      follow?: 'blocking' | 'causal';
+      maxSegments?: number;
+    } = {}
   ): Promise<WithContext<MarkerCriticalPathResult>> {
     const result = collectMarkerCriticalPath(
       this._store,
@@ -1890,7 +1894,9 @@ export class ProfileQuerier {
       this._threadMap,
       this._timestampManager,
       markerHandle,
-      options.maxDepth ?? DEFAULT_CRITICAL_PATH_MAX_DEPTH
+      options.maxDepth ?? DEFAULT_CRITICAL_PATH_MAX_DEPTH,
+      options.follow,
+      options.maxSegments
     );
     return {
       ...result,

@@ -8,6 +8,10 @@
  * times are in the same unit and origin as the marker times that went into the
  * graph (absolute milliseconds).
  *
+ * An effect on a thread starts once two things are true: its trigger has
+ * arrived, and the thread is free. So between the trigger and the start of the
+ * effect, whatever ran on the effect's thread delayed it.
+ *
  * Starting at (thread, time), the walk repeats:
  *   entry = findCausalEntry(thread, time)
  *   none            -> "root" (zero length, at `time`), stop. We do not know
@@ -19,13 +23,24 @@
  *                     continue from that interval, with no wait. Otherwise
  *                     "unknown-cause" (zero length, at entry.time), stop
  *   wait segment      cause.time .. entry.time, from the cause's thread to the
- *                     entry's thread, then continue from (cause thread,
- *                     cause time) with the primary cause only.
+ *                     entry's thread. By default, the work that ran on the
+ *                     entry's thread in that span is added as running segments
+ *                     flagged `blocking`, one per top-level effect-carrying
+ *                     interval (clipped to the span), and only the rest of the
+ *                     span counts as waiting. That work includes the remainder
+ *                     of the task that emitted the trigger, when it is on the
+ *                     same thread.
+ *                     Then continue from (cause thread, cause time) with the
+ *                     primary cause only.
+ *
+ * With `follow: 'causal'` the span is not broken down: the time the thread
+ * spent in other work is the busy part of the wait.
  */
 
 import {
   findCausalEntry,
   findEnclosingCausalInterval,
+  getTopLevelIntervalsInRange,
   getBusyTime,
   getCauses,
   type CausalGraph,
@@ -53,6 +68,9 @@ export type CriticalPathRawSegment = {
   // running and unknown-cause: the entry effect marker. wait: the effect marker
   // the wait ends in (same as `effectMarker`). root: absent.
   entryMarker?: CriticalPathMarkerRef;
+  // running only: this work ran on the thread between the trigger of a later
+  // effect on the path and its start, and so delayed it.
+  blocking?: boolean;
   // running only: the entry has no known trigger but is nested in another
   // effect-carrying interval, which the next older running segment is in.
   nestedUnknownCause?: boolean;
@@ -115,7 +133,13 @@ export type CriticalPathOptions = {
   // Per thread, when the data recorded for the thread's process starts (a
   // profiler buffer that filled up drops its oldest data), or null if unknown.
   recordingStartByThread?: ReadonlyArray<number | null>;
+  // 'blocking' (the default) adds the work that ran on an effect's thread
+  // between its trigger and its start to the path. 'causal' only reports how
+  // long that was.
+  follow?: CriticalPathFollow;
 };
+
+export type CriticalPathFollow = 'blocking' | 'causal';
 
 // An effect with no trigger that starts within this many milliseconds of the
 // start of its process's recorded data stops the walk with 'recording-start'.
@@ -132,7 +156,12 @@ export function walkCriticalPath(
   graph: CausalGraph,
   startThreadIndex: number,
   startTime: number,
-  { maxDepth, profileStart, recordingStartByThread }: CriticalPathOptions
+  {
+    maxDepth,
+    profileStart,
+    recordingStartByThread,
+    follow = 'blocking',
+  }: CriticalPathOptions
 ): CriticalPathWalk {
   const reversed: CriticalPathRawSegment[] = [];
   const visited = new Set<string>();
@@ -140,7 +169,6 @@ export function walkCriticalPath(
   let time = startTime;
   let stopReason: CriticalPathStopReason = 'max-depth';
   let nextEntry: CausalOccurrence | null = null;
-
   for (let depth = 0; ; depth++) {
     if (depth >= maxDepth) {
       stopReason = 'max-depth';
@@ -207,35 +235,68 @@ export function walkCriticalPath(
       break;
     }
 
-    const cause = causes.primary;
-    const waitStart = Math.min(cause.time, entry.time);
-    const busyMs = getBusyTime(
-      graph,
-      entry.threadIndex,
-      waitStart,
-      entry.time,
-      entry.time
-    );
+    const primary = causes.primary;
+    const waitStart = Math.min(primary.time, entry.time);
+    let busyMs;
+    let accountedMs;
+    if (follow === 'blocking') {
+      // The work that ran on the thread while the effect was waiting to start,
+      // newest first. This includes the part of the entry's own task that ran
+      // before the entry, when the entry is nested in one.
+      const blockers = getTopLevelIntervalsInRange(
+        graph,
+        entry.threadIndex,
+        waitStart,
+        entry.time
+      );
+      accountedMs = 0;
+      for (let i = blockers.length - 1; i >= 0; i--) {
+        const blocker = blockers[i];
+        const start = Math.max(blocker.time, waitStart);
+        const end = Math.min(blocker.end as number, entry.time);
+        if (end > start) {
+          reversed.push({
+            kind: 'running',
+            threadIndex: entry.threadIndex,
+            start,
+            end,
+            entryMarker: ref(blocker),
+            blocking: true,
+          });
+          accountedMs += end - start;
+        }
+      }
+      busyMs = 0;
+    } else {
+      busyMs = getBusyTime(
+        graph,
+        entry.threadIndex,
+        waitStart,
+        entry.time,
+        entry.time
+      );
+      accountedMs = busyMs;
+    }
     reversed.push({
       kind: 'wait',
       threadIndex: entry.threadIndex,
       start: waitStart,
       end: entry.time,
       entryMarker: ref(entry),
-      triggerMarker: ref(cause),
+      triggerMarker: ref(primary),
       effectMarker: ref(entry),
-      sourceThreadIndex: cause.threadIndex,
+      sourceThreadIndex: primary.threadIndex,
       alternateCauseCount: causes.alternates.length,
       busyMs,
-      idleMs: Math.max(0, entry.time - waitStart - busyMs),
+      idleMs: Math.max(0, entry.time - waitStart - accountedMs),
     });
 
-    if (!(cause.time < time)) {
+    if (!(primary.time < time)) {
       stopReason = 'non-decreasing-time';
       break;
     }
-    threadIndex = cause.threadIndex;
-    time = cause.time;
+    threadIndex = primary.threadIndex;
+    time = primary.time;
     if (time <= profileStart) {
       stopReason = 'profile-start';
       break;

@@ -542,6 +542,40 @@ function getTopLevelIntervals(
 }
 
 /**
+ * The top-level effect-carrying intervals of a thread that overlap [start,
+ * end], in time order: the work the thread did in that range. They never
+ * overlap each other.
+ */
+export function getTopLevelIntervalsInRange(
+  graph: CausalGraph,
+  threadIndex: number,
+  start: number,
+  end: number
+): CausalOccurrence[] {
+  if (!(end > start)) {
+    return [];
+  }
+  const intervals = getTopLevelIntervals(graph, threadIndex);
+  // First interval whose end is after `start`. Top-level intervals are
+  // disjoint, so their ends are sorted too.
+  let lo = 0;
+  let hi = intervals.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if ((intervals[mid].end as number) > start) {
+      hi = mid;
+    } else {
+      lo = mid + 1;
+    }
+  }
+  const inRange = [];
+  for (let i = lo; i < intervals.length && intervals[i].time < end; i++) {
+    inRange.push(intervals[i]);
+  }
+  return inRange;
+}
+
+/**
  * How much of [start, end] a thread spent inside top-level effect-carrying
  * intervals, i.e. running work that was itself caused by something. Used to
  * tell a wait that was queued behind other work from one where the thread was

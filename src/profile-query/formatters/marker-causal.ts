@@ -27,7 +27,11 @@ import type { Store } from '../../types/store';
 import type { ThreadMap } from '../thread-map';
 import type { MarkerMap } from '../marker-map';
 import type { TimestampManager } from '../timestamps';
-import { walkCriticalPath, type CriticalPathMarkerRef } from '../critical-path';
+import {
+  walkCriticalPath,
+  type CriticalPathFollow,
+  type CriticalPathMarkerRef,
+} from '../critical-path';
 import type {
   CausalMarkerRef,
   CausalLinkEnd,
@@ -53,7 +57,24 @@ export type CausalData = {
 // large fan-out cannot flood the output.
 export const MAX_EFFECTS_PER_TRIGGER = 50;
 
-export const DEFAULT_CRITICAL_PATH_MAX_DEPTH = 50;
+// The walk is cheap, and following the work that occupied a thread takes one
+// step per task, so the default only guards against a pathological profile.
+export const DEFAULT_CRITICAL_PATH_MAX_DEPTH = 100000;
+
+// How many segments (the most recent ones) a result lists by default.
+export const DEFAULT_CRITICAL_PATH_MAX_SEGMENTS = 200;
+
+// How many entries the list of top running contributors has.
+export const MAX_TOP_RUNNING = 20;
+
+function markerLabel(marker: Marker | undefined): string {
+  if (marker === undefined) {
+    return '';
+  }
+  const data = marker.data as { name?: unknown } | null | undefined;
+  const detail = data && typeof data.name === 'string' ? data.name : '';
+  return detail ? `${marker.name} - ${detail}` : marker.name;
+}
 
 // How many markers are listed as the context of the root of a path.
 export const MAX_ROOT_ENCLOSING_MARKERS = 3;
@@ -316,10 +337,17 @@ export function collectMarkerCriticalPath(
   threadMap: ThreadMap,
   timestampManager: TimestampManager,
   markerHandle: string,
-  maxDepth: number
+  maxDepth: number,
+  follow: CriticalPathFollow = 'blocking',
+  maxSegments: number = DEFAULT_CRITICAL_PATH_MAX_SEGMENTS
 ): MarkerCriticalPathResult {
   if (!Number.isInteger(maxDepth) || maxDepth < 1) {
     throw new Error(`max depth must be a positive integer, got ${maxDepth}`);
+  }
+  if (!Number.isInteger(maxSegments) || maxSegments < 0) {
+    throw new Error(
+      `max segments must be a non-negative integer, got ${maxSegments}`
+    );
   }
   const { threadIndex, markerIndex, marker } = resolveMarker(
     data,
@@ -339,10 +367,34 @@ export function collectMarkerCriticalPath(
     maxDepth,
     profileStart: rootRange.start,
     recordingStartByThread: data.recordingStartByThread,
+    follow,
   });
 
+  // Running time by what was running, over the whole path.
+  const runningByLabel = new Map<string, { running: number; count: number }>();
+  for (const raw of walk.segments) {
+    if (raw.kind !== 'running' || raw.entryMarker === undefined) {
+      continue;
+    }
+    const { threadIndex: t, markerIndex: m } = raw.entryMarker;
+    const label = markerLabel(data.markerLists[t]?.[m]);
+    const entry = runningByLabel.get(label) ?? { running: 0, count: 0 };
+    entry.running += raw.end - raw.start;
+    entry.count++;
+    runningByLabel.set(label, entry);
+  }
+  const topRunning = [...runningByLabel]
+    .map(([label, { running, count }]) => ({ label, running, count }))
+    .sort((a, b) => b.running - a.running || a.label.localeCompare(b.label))
+    .slice(0, MAX_TOP_RUNNING);
+
+  // Only the most recent segments are listed: the ones closest to the marker.
+  const listed =
+    maxSegments === 0 ? walk.segments : walk.segments.slice(-maxSegments);
+  const omittedSegments = walk.segments.length - listed.length;
+
   const rel = (time: number) => time - r.zeroAt;
-  const segments: CriticalPathSegment[] = walk.segments.map((raw) => {
+  const segments: CriticalPathSegment[] = listed.map((raw) => {
     const segment: CriticalPathSegment = {
       kind: raw.kind,
       threadHandle: threadMap.handleForThreadIndex(raw.threadIndex),
@@ -358,6 +410,9 @@ export function collectMarkerCriticalPath(
     }
     if (raw.msAfterRecordingStart !== undefined) {
       segment.msAfterRecordingStart = raw.msAfterRecordingStart;
+    }
+    if (raw.blocking) {
+      segment.blocking = true;
     }
     if (raw.nestedUnknownCause) {
       segment.nestedUnknownCause = true;
@@ -410,7 +465,11 @@ export function collectMarkerCriticalPath(
     end: marker.end !== null ? rel(marker.end) : null,
     walkStart: rel(walkTime),
     maxDepth,
+    follow,
     segments,
+    segmentCount: walk.segments.length,
+    omittedSegments,
+    topRunning,
     totalMs: running + waitBusy + waitIdle,
     totalsByKind: { running, waitBusy, waitIdle },
     totalsByThread,

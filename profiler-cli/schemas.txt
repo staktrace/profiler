@@ -348,19 +348,26 @@ profiler-cli marker cause <handle> --json
     context: SessionContext
   }
 
-profiler-cli marker critical-path <handle> [--max-depth N] --json
+profiler-cli marker critical-path <handle> [--max-depth N] [--max-segments N] [--causal] --json
   {
     type: "marker-critical-path",
     threadHandle, friendlyThreadName, markerHandle, markerIndex, markerName,
     start, end: number | null,       // the marker
     walkStart,                       // where the backward walk began (marker end)
     maxDepth,
-    segments: [{                     // chronological
+    follow: "blocking" | "causal",   // "causal" with --causal
+    segmentCount,                    // segments in the whole path
+    omittedSegments,                 // oldest segments left out of `segments` (--max-segments)
+    topRunning: [{ label, running, count }],   // running ms of the whole path by what ran,
+                                     // largest first (at most 20)
+    segments: [{                     // chronological; the last ones of the path
       kind: "running" | "wait" | "root" | "unknown-cause",
       threadHandle, friendlyThreadName,   // for a wait: the destination (waiting) thread
       start, end, duration,          // ms
       startName, endName,            // timestamp names, usable with "zoom push"
       entryMarker?: CausalMarkerRef, // running, unknown-cause, wait: the entry effect
+      blocking?: true,               // running only: ran on the thread between the trigger and
+                                     // the start of a later effect on the path, delaying it
       nestedUnknownCause?: true,     // running only: entry has no trigger but is nested in the
                                      // previous segment's causal interval (synchronous call)
       msAfterRecordingStart?,        // unknown-cause only: ms since the first sample of its process

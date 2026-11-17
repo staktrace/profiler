@@ -220,8 +220,12 @@ export type ClientCommand =
       subcommand: 'info' | 'select' | 'stack' | 'cause' | 'critical-path';
       /** Single handle, for `stack`, `cause` and `critical-path`. */
       marker?: string;
-      /** `critical-path`: the maximum number of causal hops to follow. */
+      /** `critical-path`: the maximum number of steps to follow. */
       maxDepth?: number;
+      /** `critical-path`: always follow the trigger. */
+      causal?: boolean;
+      /** `critical-path`: how many segments to list, 0 for all. */
+      maxSegments?: number;
       /** Handle specs for `info`, e.g. ["m-42", "m-50..m-53"]. */
       markers?: string[];
     }

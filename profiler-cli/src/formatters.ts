@@ -696,6 +696,9 @@ function formatCriticalPathSegment(
     case 'running':
       lines.push(
         `        in ${segment.entryMarker!.markerHandle} "${segment.entryMarker!.name}"` +
+          (segment.blocking
+            ? ' (delayed the next effect: ran between its trigger and its start)'
+            : '') +
           (segment.nestedUnknownCause
             ? ' (no known trigger; nested in the previous segment, treated as a synchronous call)'
             : '')
@@ -756,6 +759,11 @@ export function formatMarkerCriticalPathResult(
   lines.push(
     `Thread: ${result.threadHandle} (${result.friendlyThreadName}), walk started at ${formatTimestamp(result.walkStart)}, max depth ${result.maxDepth}`
   );
+  lines.push(
+    result.follow === 'causal'
+      ? 'Following causal triggers only (--causal): time an effect spent waiting for its thread is the busy part of its wait.'
+      : 'Each step follows the causal trigger. The work that ran on the thread between a trigger and its effect, delaying it, is listed as running segments marked "delayed the next effect".'
+  );
 
   for (const warning of result.warnings) {
     lines.push('', `Warning: ${warning}`);
@@ -770,9 +778,29 @@ export function formatMarkerCriticalPathResult(
       `waiting ${formatDuration(waitBusy + waitIdle)} (${percentOf(waitBusy + waitIdle, total)}; ${formatDuration(waitBusy)} busy, ${formatDuration(waitIdle)} idle)`
   );
 
-  lines.push('', 'Segments, oldest first:');
+  if (result.topRunning.length > 0) {
+    lines.push('', 'Running time by what ran (whole path, largest first):');
+    for (const { label, running, count } of result.topRunning) {
+      lines.push(
+        `  ${formatDuration(running)} (${percentOf(running, total)})  ${label}  x${count}`
+      );
+    }
+  }
+
+  lines.push(
+    '',
+    result.omittedSegments > 0
+      ? `Segments, oldest first (the last ${result.segments.length} of ${result.segmentCount}; --max-segments 0 lists all):`
+      : 'Segments, oldest first:'
+  );
   result.segments.forEach((segment, index) => {
-    lines.push(...formatCriticalPathSegment(segment, index, formatTimestamp));
+    lines.push(
+      ...formatCriticalPathSegment(
+        segment,
+        result.omittedSegments + index,
+        formatTimestamp
+      )
+    );
   });
 
   lines.push('', 'By thread:');

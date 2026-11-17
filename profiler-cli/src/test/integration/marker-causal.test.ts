@@ -78,7 +78,7 @@ describe('marker cause and critical-path', () => {
     ]);
     expect(result.type).toBe('marker-critical-path');
     expect(result.stopReason).toBe('root');
-    expect(result.maxDepth).toBe(50);
+    expect(result.maxDepth).toBe(100000);
     expect(result.segments.map((s) => s.kind)).toEqual([
       'root',
       'wait',

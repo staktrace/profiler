@@ -1031,6 +1031,11 @@ export type CriticalPathSegment = {
    */
   nestedUnknownCause?: boolean;
   /**
+   * running only: this work ran on the thread between the trigger of a later
+   * effect on the path and its start, and so delayed it.
+   */
+  blocking?: boolean;
+  /**
    * unknown-cause only, when known: ms between the start of the data recorded
    * for the effect's process (its first sample) and the effect.
    */
@@ -1082,8 +1087,26 @@ export type MarkerCriticalPathResult = {
   /** Ms since the profile start: where the walk began. */
   walkStart: number;
   maxDepth: number;
-  /** In chronological order. */
+  /**
+   * 'blocking': the work that ran on an effect's thread between its trigger
+   * and its start is on the path, as running segments flagged `blocking`.
+   * 'causal': only the chain of causes; that time is the busy part of waits.
+   */
+  follow: 'blocking' | 'causal';
+  /**
+   * In chronological order. Only the last `segmentCount - omittedSegments`
+   * segments of the path: the ones closest to the marker.
+   */
   segments: CriticalPathSegment[];
+  /** The number of segments of the whole path. */
+  segmentCount: number;
+  /** How many of the oldest segments are not in `segments`. */
+  omittedSegments: number;
+  /**
+   * What the running time of the whole path was spent in, by marker label,
+   * largest first.
+   */
+  topRunning: Array<{ label: string; running: number; count: number }>;
   /** Running + wait busy + wait idle, in ms. The root segment adds nothing. */
   totalMs: number;
   totalsByKind: CriticalPathTotals;
