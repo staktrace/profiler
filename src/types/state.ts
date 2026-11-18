@@ -407,6 +407,7 @@ export type ProfileSpecificUrlState = {
   legacyHiddenThreads: ThreadIndex[] | null;
   selectedMarkers: SelectedMarkersPerThread;
   criticalPathTarget: CriticalPathTarget | null;
+  criticalPathFocus: boolean;
   selectedFunctions: SelectedFunctionsPerThread;
   markerTableSort: SingleColumnSortState[] | null;
   functionListSort: SingleColumnSortState[] | null;

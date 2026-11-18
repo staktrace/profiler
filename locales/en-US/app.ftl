@@ -341,6 +341,8 @@ SettingsMenu--language-switcher =
 ## the chain of work, across threads, that led to it.
 
 TimelineCriticalPath--label = Critical path
+TimelineCriticalPath--focus-button = Focus
+    .title = Show the path as one thread: select the threads that ran on it and keep only the samples taken while they did
 TimelineCriticalPath--close-button =
     .title = Hide the critical path
 

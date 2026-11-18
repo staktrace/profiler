@@ -25,6 +25,7 @@ import {
   changeMarkerTableSort,
   changeFunctionListSort,
   changeCriticalPathTarget,
+  changeCriticalPathFocus,
 } from '../actions/profile-view';
 import { changeSelectedTab, changeProfilesToCompare } from '../actions/app';
 import {
@@ -647,6 +648,19 @@ describe('critical path target', function () {
     expect(
       urlStateSelectors.getCriticalPathTarget(newStore.getState())
     ).toEqual({ threadIndex: 2, markerIndex: 37 });
+  });
+
+  it('keeps the focus on the path in the URL', function () {
+    const { getState, dispatch } = _getStoreWithURL();
+    expect(urlStateSelectors.getCriticalPathFocus(getState())).toBe(false);
+    dispatch(changeCriticalPathTarget({ threadIndex: 0, markerIndex: 1 }));
+    dispatch(changeCriticalPathFocus(true));
+    expect(getQueryStringFromState(getState())).toContain('criticalPathFocus');
+
+    const newStore = _getStoreFromStateAfterUrlRoundtrip(getState());
+    expect(urlStateSelectors.getCriticalPathFocus(newStore.getState())).toBe(
+      true
+    );
   });
 
   it('ignores a malformed value', function () {

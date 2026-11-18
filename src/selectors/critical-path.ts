@@ -8,7 +8,11 @@
  */
 
 import { getProfile, getProfileRootRange } from './profile';
-import { getCriticalPathTarget } from './url-state';
+import { getCriticalPathFocus, getCriticalPathTarget } from './url-state';
+import {
+  setCriticalPathSampleRangesProvider,
+  type CriticalPathSampleRanges,
+} from './critical-path-samples';
 import {
   computeCausalDataFromState,
   getCriticalPathWalkStart,
@@ -25,6 +29,7 @@ import type {
   Profile,
   Selector,
   State,
+  ThreadIndex,
 } from 'firefox-profiler/types';
 
 // The walk in the timeline is not meant to be cut short. This only bounds the
@@ -104,3 +109,93 @@ export const getTimelineCriticalPath: Selector<TimelineCriticalPath | null> = (
   _lastCriticalPath = criticalPath;
   return criticalPath;
 };
+
+/**
+ * Whether the panels are focused on the critical path: only the samples taken
+ * while a thread was running on the path are kept.
+ */
+export const getIsCriticalPathFocused: Selector<boolean> = (state) =>
+  getCriticalPathFocus(state) && getTimelineCriticalPath(state) !== null;
+
+const _rangesByPath = new WeakMap<
+  TimelineCriticalPath,
+  CriticalPathSampleRanges
+>();
+
+export function computeCriticalPathSampleRanges(
+  criticalPath: TimelineCriticalPath
+): CriticalPathSampleRanges {
+  const byThread = new Map<ThreadIndex, Array<[number, number]>>();
+  for (const segment of criticalPath.walk.segments) {
+    if (segment.kind !== 'running' || !(segment.end > segment.start)) {
+      continue;
+    }
+    let ranges = byThread.get(segment.threadIndex);
+    if (ranges === undefined) {
+      ranges = [];
+      byThread.set(segment.threadIndex, ranges);
+    }
+    ranges.push([segment.start, segment.end]);
+  }
+
+  const result: CriticalPathSampleRanges = new Map();
+  for (const [threadIndex, ranges] of byThread) {
+    ranges.sort((a, b) => a[0] - b[0]);
+    const flat: number[] = [];
+    for (const [start, end] of ranges) {
+      if (flat.length > 0 && start <= flat[flat.length - 1]) {
+        flat[flat.length - 1] = Math.max(flat[flat.length - 1], end);
+      } else {
+        flat.push(start, end);
+      }
+    }
+    result.set(threadIndex, Float64Array.from(flat));
+  }
+  return result;
+}
+
+/**
+ * The sample ranges of the path in the timeline, or null if there is none.
+ */
+export const getCriticalPathSampleRanges: Selector<
+  CriticalPathSampleRanges | null
+> = (state) => {
+  const criticalPath = getTimelineCriticalPath(state);
+  if (criticalPath === null) {
+    return null;
+  }
+  let ranges = _rangesByPath.get(criticalPath);
+  if (ranges === undefined) {
+    ranges = computeCriticalPathSampleRanges(criticalPath);
+    _rangesByPath.set(criticalPath, ranges);
+  }
+  return ranges;
+};
+
+/**
+ * The threads that ran on the path, for selecting them together.
+ */
+const _noThreadIndexes = new Set<ThreadIndex>();
+const _threadIndexesByRanges = new WeakMap<
+  CriticalPathSampleRanges,
+  Set<ThreadIndex>
+>();
+
+export const getCriticalPathThreadIndexes: Selector<Set<ThreadIndex>> = (
+  state
+) => {
+  const ranges = getCriticalPathSampleRanges(state);
+  if (ranges === null) {
+    return _noThreadIndexes;
+  }
+  let threadIndexes = _threadIndexesByRanges.get(ranges);
+  if (threadIndexes === undefined) {
+    threadIndexes = new Set(ranges.keys());
+    _threadIndexesByRanges.set(ranges, threadIndexes);
+  }
+  return threadIndexes;
+};
+
+// The per-thread selectors cannot import this module, which uses them to get
+// the markers of every thread. Hand them the ranges this way instead.
+setCriticalPathSampleRangesProvider(getCriticalPathSampleRanges);

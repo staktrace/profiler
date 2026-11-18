@@ -52,6 +52,10 @@ import type { BitSet } from 'firefox-profiler/utils/bitset';
 import type { MarkerSelectorsPerThread } from './markers';
 
 import { mergeThreads } from '../../profile-logic/merge-compare';
+import {
+  getFocusedCriticalPathSampleRanges,
+  keepSamplesInRanges,
+} from '../critical-path-samples';
 import { defaultThreadViewOptions } from '../../reducers/profile-view';
 import type { SliceTree } from '../../utils/slice-tree';
 import { getSlices } from '../../utils/slice-tree';
@@ -214,8 +218,58 @@ export function getBasicThreadSelectorsPerThread(
     ProfileData.createThreadFromDerivedTables
   );
 
+  /**
+   * The thread as seen with the focus on the critical path of the timeline:
+   * the samples taken while a thread was not running on the path lose their
+   * stack. This happens before the threads are merged, as each one has its own
+   * time ranges on the path. The markers are not affected: they are read from
+   * getThread, which the critical path itself is computed from.
+   */
+  const getCriticalPathRawThread: Selector<RawThread> = createSelector(
+    ProfileSelectors.getProfile,
+    getFocusedCriticalPathSampleRanges,
+    (profile, ranges) => {
+      const threads = [...threadIndexes].map((threadIndex) =>
+        keepSamplesInRanges(
+          profile.threads[threadIndex],
+          ranges?.get(threadIndex)
+        )
+      );
+      return threads.length === 1 ? threads[0] : mergeThreads(threads);
+    }
+  );
+  const getCriticalPathSamplesTable: Selector<SamplesTable> = createSelector(
+    (state: State) => getCriticalPathRawThread(state).samples,
+    ProfileSelectors.getStackTable,
+    ProfileSelectors.getSampleUnits,
+    ProfileSelectors.getReferenceCPUDeltaPerMs,
+    ProfileSelectors.getDefaultCategory,
+    ProfileData.computeSamplesTableFromRawSamplesTable
+  );
+  const getCriticalPathThread: Selector<Thread> = createSelector(
+    getCriticalPathRawThread,
+    getCriticalPathSamplesTable,
+    ProfileSelectors.getStackTable,
+    ProfileSelectors.getFrameTable,
+    ProfileSelectors.getFunctionsReservedFuncTable,
+    ProfileSelectors.getNativeSymbolTable,
+    (state: State) =>
+      ProfileSelectors.getRawProfileSharedData(state).resourceTable,
+    ProfileSelectors.getStringTable,
+    ProfileSelectors.getSourceTable,
+    getTracedValuesBuffer,
+    (state: State) =>
+      ProfileSelectors.getRawProfileSharedData(state).sourceLocationTable,
+    getJsAllocations,
+    getNativeAllocations,
+    ProfileData.createThreadFromDerivedTables
+  );
+
   const getRangeFilteredThread: Selector<Thread> = createSelector(
-    getThread,
+    (state: State) =>
+      getFocusedCriticalPathSampleRanges(state) !== null
+        ? getCriticalPathThread(state)
+        : getThread(state),
     ProfileSelectors.getCommittedRange,
     (thread, range) => {
       const { start, end } = range;

@@ -200,6 +200,7 @@ type BaseQuery = {
   profiles: string[];
   profileName: string;
   criticalPath: string; // "12-345": thread index, then marker index
+  criticalPathFocus: null | undefined;
   symbolServer: string;
   view: string;
   implementation: string;
@@ -347,6 +348,9 @@ export function getQueryStringFromUrlState(urlState: UrlState): string {
     profileName: urlState.profileName || undefined,
     criticalPath: urlState.profileSpecific.criticalPathTarget
       ? `${urlState.profileSpecific.criticalPathTarget.threadIndex}-${urlState.profileSpecific.criticalPathTarget.markerIndex}`
+      : undefined,
+    criticalPathFocus: urlState.profileSpecific.criticalPathFocus
+      ? null
       : undefined,
     symbolServer: urlState.symbolServerUrl || undefined,
     implementation:
@@ -696,6 +700,7 @@ export function stateFromLocation(
       markersSearchString: query.markerSearch || '',
       networkSearchString: query.networkSearch || '',
       criticalPathTarget: parseCriticalPathTarget(query.criticalPath),
+      criticalPathFocus: query.criticalPathFocus !== undefined,
       transforms,
       sourceView,
       assemblyView,

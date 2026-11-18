@@ -576,6 +576,10 @@ type UrlStateAction =
       readonly target: CriticalPathTarget | null;
     }
   | {
+      readonly type: 'CHANGE_CRITICAL_PATH_FOCUS';
+      readonly isFocused: boolean;
+    }
+  | {
       readonly type: 'CHANGE_MARKER_SEARCH_STRING';
       readonly searchString: string;
     }

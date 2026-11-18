@@ -121,6 +121,8 @@ export const getCurrentSearchString: Selector<string> = (state) =>
 export const getCriticalPathTarget: Selector<CriticalPathTarget | null> = (
   state
 ) => getProfileSpecificState(state).criticalPathTarget;
+export const getCriticalPathFocus: Selector<boolean> = (state) =>
+  getProfileSpecificState(state).criticalPathFocus;
 export const getMarkersSearchString: Selector<string> = (state) =>
   getProfileSpecificState(state).markersSearchString;
 export const getMarkerTableSort: Selector<SingleColumnSortState[] | null> = (

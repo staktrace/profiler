@@ -1726,6 +1726,23 @@ export function changeCriticalPathTarget(
   };
 }
 
+/**
+ * Focus the panels on the critical path shown in the timeline: select the
+ * threads that ran on it, and keep only the samples taken while they did. Or
+ * end that focus, leaving the selected threads as they are.
+ */
+export function changeCriticalPathFocus(
+  isFocused: boolean,
+  pathThreadIndexes?: Set<ThreadIndex>
+): ThunkAction<void> {
+  return (dispatch) => {
+    if (isFocused && pathThreadIndexes && pathThreadIndexes.size > 0) {
+      dispatch(changeSelectedThreads(pathThreadIndexes));
+    }
+    dispatch({ type: 'CHANGE_CRITICAL_PATH_FOCUS', isFocused });
+  };
+}
+
 export function changeMarkersSearchString(searchString: string): Action {
   return {
     type: 'CHANGE_MARKER_SEARCH_STRING',

@@ -201,6 +201,18 @@ const criticalPathTarget: Reducer<CriticalPathTarget | null> = (
   }
 };
 
+const criticalPathFocus: Reducer<boolean> = (state = false, action) => {
+  switch (action.type) {
+    case 'CHANGE_CRITICAL_PATH_FOCUS':
+      return action.isFocused;
+    case 'CHANGE_CRITICAL_PATH_TARGET':
+      // The focus is on one path: it ends when the path is hidden.
+      return action.target === null ? false : state;
+    default:
+      return state;
+  }
+};
+
 const markersSearchString: Reducer<string> = (state = '', action) => {
   switch (action.type) {
     case 'CHANGE_MARKER_SEARCH_STRING':
@@ -882,6 +894,7 @@ const profileSpecific = combineReducers({
   markersSearchString,
   networkSearchString,
   criticalPathTarget,
+  criticalPathFocus,
   transforms,
   sourceView,
   assemblyView,

@@ -24,10 +24,13 @@ import {
   getZeroAt,
 } from 'firefox-profiler/selectors/profile';
 import {
+  getCriticalPathThreadIndexes,
+  getIsCriticalPathFocused,
   getTimelineCriticalPath,
   type TimelineCriticalPath as CriticalPathData,
 } from 'firefox-profiler/selectors/critical-path';
 import {
+  changeCriticalPathFocus,
   changeCriticalPathTarget,
   selectTrackFromTid,
   updatePreviewSelection,
@@ -232,9 +235,12 @@ type StateProps = {
   readonly committedRange: StartEndRange;
   readonly zeroAt: Milliseconds;
   readonly threads: RawThread[];
+  readonly isFocused: boolean;
+  readonly pathThreadIndexes: Set<number>;
 };
 
 type DispatchProps = {
+  readonly changeCriticalPathFocus: typeof changeCriticalPathFocus;
   readonly changeCriticalPathTarget: typeof changeCriticalPathTarget;
   readonly selectTrackFromTid: typeof selectTrackFromTid;
   readonly updatePreviewSelection: typeof updatePreviewSelection;
@@ -370,6 +376,14 @@ class TimelineCriticalPathImpl extends React.PureComponent<Props, State> {
     this.props.changeCriticalPathTarget(null);
   };
 
+  // Show the path as one synthetic thread in the panels: select the threads
+  // that ran on it, and keep only the samples taken while they did.
+  _toggleFocus = () => {
+    const { isFocused, pathThreadIndexes, changeCriticalPathFocus } =
+      this.props;
+    changeCriticalPathFocus(!isFocused, pathThreadIndexes);
+  };
+
   _renderTooltip(
     criticalPath: CriticalPathData,
     segment: CriticalPathRawSegment
@@ -486,7 +500,7 @@ class TimelineCriticalPathImpl extends React.PureComponent<Props, State> {
   }
 
   override render() {
-    const { criticalPath, committedRange, width } = this.props;
+    const { criticalPath, committedRange, width, isFocused } = this.props;
     if (criticalPath === null) {
       return null;
     }
@@ -512,6 +526,22 @@ class TimelineCriticalPathImpl extends React.PureComponent<Props, State> {
             </Localized>{' '}
             {targetLabel}
           </span>
+          <Localized
+            id="TimelineCriticalPath--focus-button"
+            attrs={{ title: true }}
+          >
+            <button
+              type="button"
+              className={
+                'timelineCriticalPathFocus' + (isFocused ? ' checked' : '')
+              }
+              aria-pressed={isFocused}
+              title="Show the path as one thread: select the threads that ran on it and keep only the samples taken while they did"
+              onClick={this._toggleFocus}
+            >
+              Focus
+            </button>
+          </Localized>
           <Localized
             id="TimelineCriticalPath--close-button"
             attrs={{ title: true }}
@@ -559,11 +589,14 @@ export const TimelineCriticalPath = explicitConnect<
 >({
   mapStateToProps: (state) => ({
     criticalPath: getTimelineCriticalPath(state),
+    isFocused: getIsCriticalPathFocused(state),
+    pathThreadIndexes: getCriticalPathThreadIndexes(state),
     committedRange: getCommittedRange(state),
     zeroAt: getZeroAt(state),
     threads: getThreads(state),
   }),
   mapDispatchToProps: {
+    changeCriticalPathFocus,
     changeCriticalPathTarget,
     selectTrackFromTid,
     updatePreviewSelection,
